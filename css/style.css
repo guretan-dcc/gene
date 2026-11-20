@@ -221,3 +221,24 @@ body {
     color: #ffffff;
     font-weight: 600;
 }
+
+/* タブ */
+.u-tabs {
+    display: flex;
+    background: #1c1c20;
+    border-bottom: 1px solid #141417;
+}
+.u-tab {
+    flex: 1;
+    padding: 7px 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #a1a1aa;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+}
+.u-tab:hover { color: #ffffff; background: #26262b; }
+.u-tab.active { color: #ffffff; border-bottom-color: #3b82f6; background: #26262b; }
+.u-btn:disabled { opacity: 0.35; cursor: default; }

@@ -1,6 +1,7 @@
 import { routeEditState } from '../scene/scene.js';
 import { state } from '../state.js';
 import { syncInspectorUI } from './inspector.js';
+import { activateTab } from './tabs.js';
 
 export function setFoldoutOpen(panelId, isOpen) {
     const panel = document.getElementById(panelId);
@@ -27,6 +28,7 @@ export function selectAndHighlightGizmo(sel, shouldScroll = true) {
         return;
     }
 
+    activateTab('route');
     setFoldoutOpen('panelRouteBridge', true);
     let focusEl = null;
     let labelText = '';

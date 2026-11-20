@@ -1,6 +1,8 @@
+import { initHistory } from './history.js';
 import { rebuildScene } from './scene/rebuild.js';
 import { camera, renderer, scene } from './scene/scene.js';
 import { setupInspectorEvents, syncInspectorUI } from './ui/inspector.js';
+import { setupTabs } from './ui/tabs.js';
 
 function onWindowResize() {
     const container = document.getElementById('viewportContainer');
@@ -13,12 +15,14 @@ function onWindowResize() {
 window.addEventListener('resize', onWindowResize);
 
 window.onload = function () {
+    setupTabs();
     setupInspectorEvents();
     syncInspectorUI();
     onWindowResize();
     requestAnimationFrame(() => onWindowResize());
     rebuildScene();
     syncInspectorUI();
+    initHistory();
 
     function animate() {
         requestAnimationFrame(animate);

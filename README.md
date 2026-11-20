@@ -24,6 +24,9 @@ js/
   generators/bridge-generator.js  橋メッシュ生成
   export/unity-yaml.js        Unity YAML シリアライズ
   export/exporters.js         Prefab / JSON / PLY 出力
+  export/importers.js         設定JSONの読み込み
+  history.js                  Undo / Redo（Ctrl+Z / Ctrl+Y）
+  ui/tabs.js                  右パネルのタブ切り替え
   ui/*.js                     インスペクタUI（島リスト・ウェイポイント・トースト等）
   main.js                     起動処理
 ```
@@ -38,3 +41,9 @@ ES Module は `file://` で直接開くと動かないため、ローカルサ�
 ```
 python3 -m http.server 8000   # → http://localhost:8000/
 ```
+
+## 操作
+
+- 右パネルは上部に常時表示のバー（元に戻す／やり直し・Prefab・PLY・JSON保存・JSON読込）と、タブ（島／道・橋／地形・水／植生・色）で構成。
+- **Ctrl+Z** で元に戻す、**Ctrl+Y** でやり直し（Mac は Cmd）。スライダー・色・ギズモ操作・プリセット変更・JSON読込などが対象。
+- 「JSON保存」で出力した設定ファイルは「JSON読込」で復元できます。

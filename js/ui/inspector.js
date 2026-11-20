@@ -1,4 +1,5 @@
 import { createPresetIslands } from '../data/presets.js';
+import { importSettingsFile } from '../export/importers.js';
 import { exportPlyMesh, exportSettingsJson, exportUnityPrefab } from '../export/exporters.js';
 import { showFlags } from '../scene/archipelago.js';
 import { rebuildScene } from '../scene/rebuild.js';
@@ -9,6 +10,18 @@ import { renderIslandListUI } from './island-list.js';
 import { showToast } from './toast.js';
 import { renderWaypointListUI } from './waypoint-list.js';
 import { clamp } from '../utils/math.js';
+
+// 色ピッカーのID → state のキー
+const COLOR_MAP = {
+    colGrass: 'grassColor',
+    colForest: 'forestGroundColor',
+    colSand: 'sandColor',
+    colRock: 'rockColor',
+    colSnow: 'snowColor',
+    colUnder: 'underColor',
+    colWater: 'waterColor',
+    colWood: 'woodColor'
+};
 
 export function syncInspectorUI() {
     renderIslandListUI();
@@ -22,6 +35,11 @@ export function syncInspectorUI() {
     document.getElementById('chkHasTrail').checked = isl.hasTrail !== false;
     document.getElementById('chkHasInternalBridge').checked = isl.hasInternalBridge !== false;
     document.getElementById('chkBridgeToNext').checked = isl.hasBridgeToNext !== false;
+
+    Object.entries(COLOR_MAP).forEach(([id, key]) => {
+        const el = document.getElementById(id);
+        if (el && state[key]) el.value = state[key];
+    });
 
     document.querySelectorAll('[data-isl-bind]').forEach(row => {
         const key = row.getAttribute('data-isl-bind');
@@ -234,6 +252,14 @@ export function setupInspectorEvents() {
         syncInspectorUI();
     });
 
+    const fileInput = document.getElementById('fileImportJson');
+    document.getElementById('btnImportJson').addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', async () => {
+        const file = fileInput.files[0];
+        fileInput.value = '';
+        if (file) await importSettingsFile(file);
+    });
+
     document.getElementById('btnResetAll').addEventListener('click', () => {
         setState(JSON.parse(JSON.stringify(defaultState)));
         routeEditState.selectedGizmo = null;
@@ -242,17 +268,7 @@ export function setupInspectorEvents() {
         showToast("初期設定に戻しました");
     });
 
-    const colorMap = {
-        colGrass: 'grassColor',
-        colForest: 'forestGroundColor',
-        colSand: 'sandColor',
-        colRock: 'rockColor',
-        colSnow: 'snowColor',
-        colUnder: 'underColor',
-        colWater: 'waterColor',
-        colWood: 'woodColor'
-    };
-    Object.entries(colorMap).forEach(([id, key]) => {
+    Object.entries(COLOR_MAP).forEach(([id, key]) => {
         const el = document.getElementById(id);
         if (!el) return;
         el.addEventListener('input', e => {
