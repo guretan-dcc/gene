@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>群島・ステージ連結型 ローポリ浮島＆橋ジェネレーター</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="h-screen w-screen flex flex-col md:flex-row overflow-hidden">
+
+    <!-- Left/Main 3D Scene View Area -->
+    <div class="relative flex-1 flex flex-col h-[52vh] md:h-full bg-[#14161b] overflow-hidden">
+        <!-- Top Scene Toolbar -->
+        <div class="h-9 bg-[#232328] border-b border-[#111113] px-3 flex items-center justify-between gap-2 z-10">
+            <div class="flex items-center gap-1.5">
+                <button id="btnViewOrbit" class="u-toolbar-btn" title="群島全体が収まるカメラ位置へリセット">全体表示</button>
+                <button id="btnFocusIsland" class="u-toolbar-btn" title="選択中の島にカメラをフォーカス">選択島にフォーカス</button>
+            </div>
+            <div class="flex items-center gap-1.5">
+                <button id="btnToggleGizmos" class="u-toolbar-btn active" title="橋・トンネル・道の調整ハンドルの表示切替">ギズモ</button>
+                <button id="btnSoloIsland" class="u-toolbar-btn" title="選択中の島のみを単独表示">選択島のみ</button>
+                <span class="text-[#3f3f46] mx-0.5">|</span>
+                <button id="btnToggleWire" class="u-toolbar-btn">ワイヤー</button>
+                <button id="btnToggleWater" class="u-toolbar-btn active">水</button>
+                <button id="btnToggleVeg" class="u-toolbar-btn active">植生</button>
+            </div>
+        </div>
+
+        <!-- 3D Viewport Container -->
+        <div id="viewportContainer" class="relative flex-1 w-full h-full">
+            <canvas id="sceneCanvas" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
+            <!-- Toast Notification Box -->
+            <div id="toastBox" class="hidden absolute top-4 right-4 bg-[#1e293b]/95 border border-[#3b82f6] text-white px-3.5 py-2 rounded shadow-xl text-xs z-30 transition-opacity"></div>
+        </div>
+    </div>
+
+    <!-- Right Docked Inspector Window -->
+    <aside class="w-full md:w-[410px] lg:w-[435px] h-[48vh] md:h-full bg-[#232326] border-t md:border-t-0 md:border-l border-[#111113] flex flex-col z-20">
+        <!-- Inspector Header -->
+        <div class="h-9 bg-[#2d2d32] border-b border-[#141417] px-3 flex items-center justify-between flex-shrink-0">
+            <span class="font-semibold text-[12px] text-[#f4f4f5]">浮島・群島ステージジェネレーター</span>
+            <button id="btnResetAll" class="u-btn text-[11px] py-0.5 px-2">初期設定に戻す</button>
+        </div>
+
+        <!-- Generation Mode & Update Bar -->
+        <div class="bg-[#1c1c20] border-b border-[#141417] px-3 py-2 flex items-center justify-between gap-2 flex-shrink-0">
+            <div class="flex items-center bg-[#121215] p-0.5 rounded border border-[#34343c]">
+                <button id="btnModeRealtime" class="px-2.5 py-1 text-[11px] rounded bg-[#2563eb] text-white font-medium">リアルタイム</button>
+                <button id="btnModeManual" class="px-2.5 py-1 text-[11px] rounded text-[#a1a1aa] hover:text-white">生成ボタン</button>
+            </div>
+            <button id="btnGenerateNow" class="u-btn u-btn-primary flex-1 py-1 text-[11.5px] flex items-center justify-center gap-1.5">
+                <span>生成 / 更新</span>
+                <span id="badgePendingChanges" class="hidden px-1.5 py-0.2 bg-amber-400 text-black rounded text-[10px] font-bold">未反映</span>
+            </button>
+        </div>
+
+        <!-- Compact Status Bar -->
+        <div class="bg-[#18181c] border-b border-[#2b2b30] px-3 py-1.5 flex items-center justify-between text-[11px] text-[#a1a1aa] flex-shrink-0">
+            <div class="flex items-center gap-2">
+                <span>構成: <strong id="hudIslandCount" class="text-white font-mono">3島/3橋</strong></span>
+                <span>頂点: <strong id="hudVerts" class="text-white font-mono">0</strong></span>
+                <span>三角: <strong id="hudTris" class="text-white font-mono">0</strong></span>
+            </div>
+            <div>植生: <strong id="hudVegInfo" class="text-white font-mono">0本/0株</strong></div>
+        </div>
+
+        <!-- Scrollable Inspector Content -->
+        <div class="flex-1 overflow-y-auto px-3 py-2">
+            <!-- Gizmo Status & Foldout Controls -->
+            <div class="flex items-center justify-between mb-1.5 gap-2">
+                <span id="selectedGizmoBanner" class="text-[11px] text-amber-300/90 font-medium truncate">3D画面の球をクリックで該当設定を強調</span>
+                <div class="flex items-center gap-1 flex-shrink-0">
+                    <button id="btnExpandAllFolds" class="u-btn !py-0.5 !px-2 text-[10px]">全展開</button>
+                    <button id="btnCollapseAllFolds" class="u-btn !py-0.5 !px-2 text-[10px]">全収納</button>
+                </div>
+            </div>
+
+            <!-- 1. Archipelago & Island List -->
+            <div class="u-foldout" data-fold-target="panelIslandList">
+                <span>1. 群島構成・島リスト</span>
+                <span class="fold-arrow text-[10px]">▼</span>
+            </div>
+            <div id="panelIslandList" class="u-foldout-body">
+                <div class="u-row">
+                    <label class="u-label">ステージ構成</label>
+                    <div class="u-control">
+                        <select id="selArchPreset" class="u-select">
+                            <option value="canyon_pass_3">1. 渓谷湖と山越えの3連群島</option>
+                            <option value="spiral_peaks_4">2. 螺旋登頂・渡河の4連群島</option>
+                            <option value="twin_falls_3">3. 二段渓谷滝と祠の3連群島</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="u-row">
+                    <label class="u-label">出力ルート名</label>
+                    <div class="u-control">
+                        <input type="text" id="inpStageName" class="u-text" value="AdventureArchipelago">
+                    </div>
+                </div>
+                <div id="islandListContainer" class="flex flex-col gap-1 mt-1.5"></div>
+            </div>
+
+            <!-- 2. Selected Island Size & Rock Base -->
+            <div class="u-foldout text-[#93c5fd]" data-fold-target="panelIslandBasic">
+                <span id="selectedIslandTitle" class="truncate">2. 島の配置・サイズ・岩盤</span>
+                <span class="fold-arrow text-[10px]">▼</span>
+            </div>
+            <div id="panelIslandBasic" class="u-foldout-body">
+                <div class="u-row" data-isl-bind="posY" data-min="-40" data-max="85" data-step="1">
+                    <label class="u-label font-medium text-white">島の高さ・標高 Y (m)</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+                <div class="u-row" data-isl-bind="posX" data-min="-140" data-max="140" data-step="2">
+                    <label class="u-label">位置 X (m)</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+                <div class="u-row" data-isl-bind="posZ" data-min="-160" data-max="140" data-step="2">
+                    <label class="u-label">位置 Z (m)</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+                <div class="u-row" data-isl-bind="width" data-min="36" data-max="120" data-step="2">
+                    <label class="u-label">島の直径 (m)</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+                <div class="u-row" data-isl-bind="cellSize" data-min="1.5" data-max="3.5" data-step="0.1">
+                    <label class="u-label flex items-center gap-1.5">
+                        <span>メッシュサイズ (m)</span>
+                        <span id="lblMeshActual" class="text-[10px] text-[#93c5fd] font-mono whitespace-nowrap flex-shrink-0">44分割</span>
+                    </label>
+                    <div class="u-control">
+                        <input type="range" class="u-slider">
+                        <input type="number" class="u-num">
+                    </div>
+                </div>
+                <div class="u-row" data-isl-bind="bottomDepthRatio" data-min="0.08" data-max="0.35" data-step="0.01">
+                    <label class="u-label">下部岩盤の厚み比</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+                <div class="u-row" data-isl-bind="edgeSharpness" data-min="0.2" data-max="1.0" data-step="0.05">
+                    <label class="u-label">端の切り立ち度</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+                <div class="u-row" data-isl-bind="cliffCragginess" data-min="0.1" data-max="1.0" data-step="0.05">
+                    <label class="u-label">崖・底面のゴツゴツ感</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+            </div>
+
+            <!-- 3. Route, Bridge & Cave Tunnel Editor -->
+            <div class="u-foldout" data-fold-target="panelRouteBridge">
+                <span>3. 道・橋・トンネル（動線編集）</span>
+                <span class="fold-arrow text-[10px]">▼</span>
+            </div>
+            <div id="panelRouteBridge" class="u-foldout-body">
+                <div class="bg-[#18181c] border border-[#32323a] rounded p-2 mb-2 text-[11px]">
+                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2 pb-1.5 border-b border-[#2b2b33]">
+                        <label class="flex items-center gap-1.5 cursor-pointer text-[#e4e4e7]">
+                            <input type="checkbox" id="chkHasTrail" class="accent-[#3b82f6]" checked>
+                            <span>島内の道</span>
+                        </label>
+                        <label id="lblChkInternalBridge" class="flex items-center gap-1.5 cursor-pointer text-[#e4e4e7] rounded px-1">
+                            <input type="checkbox" id="chkHasInternalBridge" class="accent-[#3b82f6]" checked>
+                            <span>自動渡河橋</span>
+                        </label>
+                        <label id="lblChkBridgeToNext" class="flex items-center gap-1.5 cursor-pointer text-[#e4e4e7] rounded px-1">
+                            <input type="checkbox" id="chkBridgeToNext" class="accent-[#3b82f6]" checked>
+                            <span>次の島への吊り橋</span>
+                        </label>
+                    </div>
+
+                    <div class="flex items-center justify-between mb-1.5 gap-1">
+                        <span class="text-[#a1a1aa] text-[10.5px]">ドラッグ移動 / Shift+ドラッグ高さY</span>
+                        <div class="flex gap-1">
+                            <button id="btnAddWaypoint" class="u-btn py-0.5 px-2 text-[10px]">＋ 経由点</button>
+                            <button id="btnAddBranch" class="u-btn u-btn-primary py-0.5 px-2 text-[10px]">＋ 分岐道</button>
+                            <button id="btnResetIslandRoute" class="u-btn py-0.5 px-2 text-[10px]">リセット</button>
+                        </div>
+                    </div>
+                    <div id="waypointListContainer" class="flex flex-col gap-1 max-h-72 overflow-y-auto pr-0.5"></div>
+                </div>
+
+                <!-- Trail Shape -->
+                <div id="trailShapeControlsBox" class="rounded">
+                    <div class="u-sub-header">道の平坦化・幅</div>
+                    <div class="u-row" data-isl-bind="trailGradeSmooth" data-min="0.0" data-max="0.95" data-step="0.05">
+                        <label class="u-label">縦断勾配の緩和</label>
+                        <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                    </div>
+                    <div class="u-row" data-isl-bind="trailBenchCut" data-min="0.0" data-max="1.0" data-step="0.05">
+                        <label class="u-label">横傾斜フラット化 (切土)</label>
+                        <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                    </div>
+                    <div class="u-row" data-isl-bind="ridgeFlatten" data-min="0.0" data-max="1.0" data-step="0.05">
+                        <label class="u-label">尾根の平坦化 (尾根道)</label>
+                        <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                    </div>
+                    <div class="u-row" data-isl-bind="trailWidth" data-min="0.5" data-max="2.2" data-step="0.05">
+                        <label class="u-label">道の幅 (m)</label>
+                        <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                    </div>
+                </div>
+
+                <!-- Bridge Shape -->
+                <div id="bridgeParamsBox" class="rounded">
+                    <div class="u-sub-header">橋の形状（幅・たるみ・板）</div>
+                    <div class="u-row" data-global-bind="bridgeWidth" data-min="1.0" data-max="3.2" data-step="0.1">
+                        <label class="u-label">橋の幅 (m)</label>
+                        <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                    </div>
+                    <div class="u-row" data-global-bind="bridgeSag" data-min="0.2" data-max="2.5" data-step="0.1">
+                        <label class="u-label">橋のたるみ (m)</label>
+                        <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                    </div>
+                    <div class="u-row" data-global-bind="bridgeIrregularity" data-min="0.0" data-max="1.0" data-step="0.05">
+                        <label class="u-label">板の不揃いさ</label>
+                        <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                    </div>
+                </div>
+
+                <!-- Cave Shape -->
+                <div id="caveSettingsBox" class="rounded">
+                    <div id="caveControls">
+                        <div class="u-sub-header">トンネル形状（幅・高さ・湾曲）</div>
+                        <div class="u-row" data-isl-bind="caveWidth" data-min="2.0" data-max="5.5" data-step="0.2">
+                            <label class="u-label">トンネル幅 (m)</label>
+                            <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                        </div>
+                        <div class="u-row" data-isl-bind="caveHeight" data-min="2.0" data-max="5.0" data-step="0.1">
+                            <label class="u-label">トンネル高さ (m)</label>
+                            <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                        </div>
+                        <div class="u-row" data-isl-bind="caveCurve" data-min="-0.5" data-max="0.5" data-step="0.05">
+                            <label class="u-label">トンネルの湾曲</label>
+                            <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. Terrain & Hydrology -->
+            <div class="u-foldout" data-fold-target="panelTerrainHydro">
+                <span>4. 地形・水系（山岳・渓谷・湖・川）</span>
+                <span class="fold-arrow text-[10px]">▶</span>
+            </div>
+            <div id="panelTerrainHydro" class="u-foldout-body hidden">
+                <div class="u-sub-header">山岳・平原・渓谷</div>
+                <div class="u-row" data-isl-bind="baseHeight" data-min="4" data-max="22" data-step="0.5">
+                    <label class="u-label">地面の基準高 (m)</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+                <div class="u-row" data-isl-bind="plainsAmp" data-min="0.5" data-max="8" data-step="0.5">
+                    <label class="u-label">草原のうねり (m)</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+                <div class="u-row" data-isl-bind="mountainAmp" data-min="6" data-max="65" data-step="1">
+                    <label class="u-label">山の高さ (m)</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+                <div class="u-row" data-isl-bind="mountainAngle" data-min="-180" data-max="180" data-step="5">
+                    <label class="u-label">山塊の配置方位 (°)</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+                <div class="u-row" data-isl-bind="rockSlope" data-min="0.50" data-max="0.90" data-step="0.02">
+                    <label class="u-label">岩肌の傾斜しきい値</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+                <div class="u-row" data-isl-bind="canyonDepth" data-min="0" data-max="32" data-step="1">
+                    <label class="u-label">渓谷の深さ (m)</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+                <div class="u-row" data-isl-bind="canyonWidth" data-min="0.06" data-max="0.22" data-step="0.01">
+                    <label class="u-label">渓谷の幅</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+
+                <div class="u-sub-header">渓谷湖・河川・土手</div>
+                <div class="u-row" data-isl-bind="maxLakes" data-min="0" data-max="2" data-step="1">
+                    <label class="u-label">渓谷湖の上限数</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+                <div class="u-row" data-isl-bind="riverAmount" data-min="0" data-max="1.5" data-step="0.1">
+                    <label class="u-label">川の多さ</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+                <div class="u-row" data-isl-bind="riverWidth" data-min="2.5" data-max="11.0" data-step="0.5">
+                    <label class="u-label">川の幅 (m)</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+                <div class="u-row" data-isl-bind="riverBankDepth" data-min="0.8" data-max="4.5" data-step="0.2">
+                    <label class="u-label">土手の深さ (m)</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+                <div class="u-row" data-isl-bind="riverDepth" data-min="1.2" data-max="6.5" data-step="0.2">
+                    <label class="u-label">川・湖の水深 (m)</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+            </div>
+
+            <!-- 5. Snow & Vegetation -->
+            <div class="u-foldout" data-fold-target="panelVeg">
+                <span>5. 植生・雪線（森・草原・雪）</span>
+                <span class="fold-arrow text-[10px]">▶</span>
+            </div>
+            <div id="panelVeg" class="u-foldout-body hidden">
+                <div class="u-row" data-global-bind="globalSnowLine" data-min="15" data-max="75" data-step="1">
+                    <label class="u-label">共通の雪線標高 Y (m)</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+                <div class="u-row" data-isl-bind="forestSpread" data-min="0.0" data-max="1.0" data-step="0.05">
+                    <label class="u-label">森の広さ</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+                <div class="u-row" data-isl-bind="treeMinDist" data-min="1.8" data-max="8.0" data-step="0.2">
+                    <label class="u-label">木の間隔 (m)</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+                <div class="u-row" data-isl-bind="treeScale" data-min="0.6" data-max="1.8" data-step="0.05">
+                    <label class="u-label">木のサイズ</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+                <div class="u-row" data-isl-bind="meadowSpread" data-min="0.0" data-max="1.0" data-step="0.05">
+                    <label class="u-label">草原の広さ</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+                <div class="u-row" data-isl-bind="grassDensity" data-min="0.0" data-max="4.0" data-step="0.1">
+                    <label class="u-label">草の密度</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+                <div class="u-row" data-isl-bind="grassMinDist" data-min="0.6" data-max="3.0" data-step="0.1">
+                    <label class="u-label">草の基準間隔 (m)</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+                <div class="u-row" data-isl-bind="grassSlopeMargin" data-min="0.0" data-max="5.0" data-step="0.2">
+                    <label class="u-label">急斜面からの草マージン</label>
+                    <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
+                </div>
+            </div>
+
+            <!-- 6. Seed & Colors -->
+            <div class="u-foldout" data-fold-target="panelColors">
+                <span>6. シード・頂点カラー</span>
+                <span class="fold-arrow text-[10px]">▶</span>
+            </div>
+            <div id="panelColors" class="u-foldout-body hidden">
+                <div class="u-row mb-2">
+                    <label class="u-label">選択島の乱数シード</label>
+                    <div class="u-control">
+                        <input type="number" id="inpSeed" class="u-num flex-1" value="1234">
+                        <button id="btnRandomSeed" class="u-btn text-[11px] py-0.5 px-2.5">ランダム</button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-x-3 gap-y-1">
+                    <div class="u-row"><label class="u-label">草地</label><input type="color" id="colGrass" class="u-color" value="#73b845"></div>
+                    <div class="u-row"><label class="u-label">森の地面</label><input type="color" id="colForest" class="u-color" value="#4d8c38"></div>
+                    <div class="u-row"><label class="u-label">水辺・山道</label><input type="color" id="colSand" class="u-color" value="#c8b482"></div>
+                    <div class="u-row"><label class="u-label">岩肌</label><input type="color" id="colRock" class="u-color" value="#85807a"></div>
+                    <div class="u-row"><label class="u-label">雪</label><input type="color" id="colSnow" class="u-color" value="#f2f7ff"></div>
+                    <div class="u-row"><label class="u-label">下部・洞窟岩</label><input type="color" id="colUnder" class="u-color" value="#59473a"></div>
+                    <div class="u-row"><label class="u-label">水・滝</label><input type="color" id="colWater" class="u-color" value="#388bfd"></div>
+                    <div class="u-row"><label class="u-label">橋の板</label><input type="color" id="colWood" class="u-color" value="#7a4a1f"></div>
+                </div>
+            </div>
+
+            <!-- Export / Output Footer -->
+            <div class="mt-3 pt-2.5 border-t border-[#323238] flex flex-col gap-1.5 pb-4">
+                <button id="btnExportPrefab" class="u-btn u-btn-primary py-1.5 text-[12px]">
+                    Unity Prefab (.prefab) 出力
+                </button>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button id="btnExportJson" class="u-btn u-btn-emerald py-1 text-[11px]">
+                        設定JSON (.json)
+                    </button>
+                    <button id="btnExportPly" class="u-btn py-1 text-[11px]">
+                        頂点カラーMesh (.ply)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- 読み込み順が依存関係順になっています（グローバルスコープ共有の通常スクリプト） -->
+    <script src="js/utils/random.js"></script>
+    <script src="js/utils/math.js"></script>
+    <script src="js/data/presets.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/scene/scene.js"></script>
+    <script src="js/ui/gizmo-highlight.js"></script>
+    <script src="js/scene/camera-controls.js"></script>
+    <script src="js/mesh/colored-mesh-builder.js"></script>
+    <script src="js/generators/island-generator.js"></script>
+    <script src="js/generators/bridge-generator.js"></script>
+    <script src="js/scene/archipelago.js"></script>
+    <script src="js/scene/gizmos.js"></script>
+    <script src="js/scene/route-editing.js"></script>
+    <script src="js/scene/rebuild.js"></script>
+    <script src="js/export/unity-yaml.js"></script>
+    <script src="js/export/exporters.js"></script>
+    <script src="js/ui/toast.js"></script>
+    <script src="js/ui/island-list.js"></script>
+    <script src="js/ui/waypoint-list.js"></script>
+    <script src="js/ui/inspector.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
