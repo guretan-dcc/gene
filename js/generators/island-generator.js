@@ -2267,34 +2267,12 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
         return lerpColor(shallow, deep, smoothstep(0.5, 4.5, depth));
     }
 
-    // 島上面 (inside) の外周境界エッジを特定し、水面メッシュの河口末端エッジを正確に抽出する
-    const insideEdgeCount = new Map();
-    const addInsideEdge = (u, v) => {
-        const ek = u < v ? `${u}_${v}` : `${v}_${u}`;
-        insideEdgeCount.set(ek, (insideEdgeCount.get(ek) || 0) + 1);
-    };
+    // 水面: 湖と河川を島上面 (inside) の崖縁までに収めて出力（崖外への板状のはみ出しを防ぐ）
     for (let iz = 0; iz < nz - 1; iz++) {
         for (let ix = 0; ix < nx - 1; ix++) {
             const a = iz * nx + ix, b = a + 1, c = a + nx, d = c + 1;
             for (let t = 0; t < 2; t++) {
                 const [i0, i1, i2] = CellTriContour(a, b, c, d, iz, t);
-                if (!(inside[i0] && inside[i1] && inside[i2])) continue;
-                if (caveExcludedCenters.has(i0) || caveExcludedCenters.has(i1) || caveExcludedCenters.has(i2)) continue;
-                addInsideEdge(i0, i1);
-                addInsideEdge(i1, i2);
-                addInsideEdge(i2, i0);
-            }
-        }
-    }
-
-    const mouthBoundaryEdges = [];
-
-    for (let iz = 0; iz < nz - 1; iz++) {
-        for (let ix = 0; ix < nx - 1; ix++) {
-            const a = iz * nx + ix, b = a + 1, c = a + nx, d = c + 1;
-            for (let t = 0; t < 2; t++) {
-                const [i0, i1, i2] = CellTriContour(a, b, c, d, iz, t);
-                // 水面は厳密に島上面 (inside) の崖縁までに収め、崖外への板状のはみ出しを防ぐ
                 if (!inside[i0] || !inside[i1] || !inside[i2]) continue;
 
                 const lid = lakeId[i0] > 0 ? lakeId[i0] : (lakeId[i1] > 0 ? lakeId[i1] : lakeId[i2]);
@@ -2317,298 +2295,382 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                 if (!river[i0] && !river[i1] && !river[i2]) continue;
                 if (Number.isNaN(riverW[i0]) || Number.isNaN(riverW[i1]) || Number.isNaN(riverW[i2])) continue;
 
-                const p0 = Pos(i0, riverW[i0]), p1 = Pos(i1, riverW[i1]), p2 = Pos(i2, riverW[i2]);
                 waterMb.tri(
-                    p0, p1, p2,
+                    Pos(i0, riverW[i0]), Pos(i1, riverW[i1]), Pos(i2, riverW[i2]),
                     computeWaterDepthColor(riverW[i0] - H[i0], 0),
                     computeWaterDepthColor(riverW[i1] - H[i1], 0),
                     computeWaterDepthColor(riverW[i2] - H[i2], 0),
                     upVec, 1.0
                 );
                 waterVertCount += 3;
-
-                // 上向き法線 (CCW) 基準で有向辺を揃え、外周境界にある河口水面エッジを収集する
-                const ux = p1.x - p0.x, uz = p1.z - p0.z;
-                const vx = p2.x - p0.x, vz = p2.z - p0.z;
-                const ny = uz * vx - ux * vz;
-                const triVerts = ny >= 0 ? [i0, i1, i2] : [i0, i2, i1];
-                for (let e = 0; e < 3; e++) {
-                    const u = triVerts[e];
-                    const v = triVerts[(e + 1) % 3];
-                    const ek = u < v ? `${u}_${v}` : `${v}_${u}`;
-                    if (insideEdgeCount.get(ek) !== 1) continue;
-                    if (!river[u] && !river[v]) continue;
-                    if (riverW[u] > H[u] + 0.02 || riverW[v] > H[v] + 0.02) {
-                        mouthBoundaryEdges.push({ u, v, wyU: riverW[u], wyV: riverW[v] });
-                    }
-                }
             }
         }
     }
 
-    // 河口の水面末端エッジ列 (mouthBoundaryEdges) から、隙間・はみ出し・重なりゼロで自然に丸みを帯びて落ちる滝メッシュを構築
-    if (mouthBoundaryEdges.length > 0) {
-        const nextEdgeByStart = new Map();
-        const inDeg = new Map();
-        for (const edge of mouthBoundaryEdges) {
-            nextEdgeByStart.set(edge.u, edge);
-            inDeg.set(edge.v, (inDeg.get(edge.v) || 0) + 1);
-            if (!inDeg.has(edge.u)) inDeg.set(edge.u, 0);
+    // ---- 7.1 河口の滝 (Unity版 `AddWaterfalls` の移植) ----
+    // 中心線の河口セルから外周リングを両岸まで辿って川幅いっぱいの滝口(lip)を作り、
+    // 落下するにつれて細く絞られる半透明の水柱を立体メッシュで構築する。
+    const isNbInside = (i, k) => {
+        const nb = Nb(i, k);
+        return nb >= 0 && inside[nb] === 1;
+    };
+    const waterSurfaceY = (idx) => {
+        if (idx >= 0 && idx < n) {
+            if (lakeId[idx] > 0) return lakeLevels[lakeId[idx]];
+            if (!Number.isNaN(riverW[idx])) return riverW[idx];
         }
-
-        // 連結した河口境界チェインを抽出
-        const usedEdgeStarts = new Set();
-        const edgeChains = [];
-        for (const edge of mouthBoundaryEdges) {
-            if ((inDeg.get(edge.u) || 0) === 0 && !usedEdgeStarts.has(edge.u)) {
-                const chain = [];
-                let cur = edge;
-                while (cur && !usedEdgeStarts.has(cur.u)) {
-                    usedEdgeStarts.add(cur.u);
-                    chain.push(cur);
-                    cur = nextEdgeByStart.get(cur.v);
-                }
-                if (chain.length > 0) edgeChains.push(chain);
+        return null;
+    };
+    const effectiveBankRatio = (wRiver, hRiver, wBank, hBank) => {
+        if (hBank <= wBank + 0.02) return 0.98;
+        const wGap = Math.max(0.05, wRiver - hRiver);
+        const bankRise = Math.max(0.05, hBank - wBank);
+        return clamp(wGap / (wGap + bankRise) + 0.04, 0.12, 0.96);
+    };
+    // 外周リング (外側に隣接する内側頂点) に沿って targetDir 方向へ1歩進む
+    const stepRiverMouthRim = (curr, tx, tz) => {
+        let bestNb = -1, bestScore = -Infinity;
+        for (let k = 0; k < 6; k++) {
+            const nb = Nb(curr, k);
+            if (nb < 0 || !inside[nb]) continue;
+            const adjOut = !isNbInside(curr, (k + 1) % 6) || !isNbInside(curr, (k + 5) % 6);
+            if (!adjOut) continue;
+            const dx = xz[nb].x - xz[curr].x, dz = xz[nb].z - xz[curr].z;
+            const len = Math.hypot(dx, dz);
+            if (len * len < 1e-6) continue;
+            const score = (dx / len) * tx + (dz / len) * tz;
+            if (score > bestScore) { bestScore = score; bestNb = nb; }
+        }
+        return (bestNb >= 0 && bestScore > -0.25) ? bestNb : -1;
+    };
+    const lerpPt = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t });
+    const lerpNum = (a, b, t) => a + (b - a) * t;
+    const addQuadWithCenter = (a0, a1, b0, b1, ca, cb, outward) => {
+        waterMb.tri(a0, a1, b1, ca, ca, cb, outward, 1.0);
+        waterMb.tri(a0, b1, b0, ca, cb, cb, outward, 1.0);
+        waterVertCount += 6;
+    };
+    const samplePolyline = (pts, cum, total, dist) => {
+        if (pts.length === 1 || total <= 1e-5) return { x: pts[0].x, z: pts[0].z, y: pts[0].y };
+        const d = clamp(dist, 0, total);
+        for (let i = 0; i < pts.length - 1; i++) {
+            const a = cum[i], b = cum[i + 1];
+            if (d <= b || i === pts.length - 2) {
+                const u = (b > a + 1e-5) ? clamp((d - a) / (b - a), 0, 1) : 0;
+                const p = lerpPt(pts[i], pts[i + 1], u);
+                return { x: p.x, z: p.z, y: p.y };
             }
         }
-        for (const edge of mouthBoundaryEdges) {
-            if (!usedEdgeStarts.has(edge.u)) {
-                const chain = [];
-                let cur = edge;
-                while (cur && !usedEdgeStarts.has(cur.u)) {
-                    usedEdgeStarts.add(cur.u);
-                    chain.push(cur);
-                    cur = nextEdgeByStart.get(cur.v);
+        const last = pts[pts.length - 1];
+        return { x: last.x, z: last.z, y: last.y };
+    };
+
+    (function addWaterfalls() {
+        const curveSteps = 9;
+        const curveEndLocal = -Math.max(bottomDepth * 1.35, 60);
+        const deepBottom = Math.min(curveEndLocal - 60, -920);
+        const extYs = [];
+        for (const ey of [-320, -630, -750, deepBottom]) {
+            if (ey < curveEndLocal - 10 && (extYs.length === 0 || ey < extYs[extYs.length - 1] - 1)) extYs.push(ey);
+        }
+        const steps = curveSteps + extYs.length;
+        const curveEndY = curveEndLocal + oy;
+        const mouthUsed = new Uint8Array(n);
+        const rng = new SeededRandom(islCfg.seed + 53);
+        const waterCol = palette.water;
+        const foamTint = lerpColor(waterCol, { r: 1, g: 1, b: 1 }, 0.45);
+        const riverWidth = islCfg.riverWidth;
+
+        for (let m = 0; m < n; m++) {
+            if (!centerRiver[m] || mouthUsed[m] || Number.isNaN(riverW[m])) continue;
+
+            const mPos = xz[m];
+            let outCnt = 0, hasLowerRiver = false, osx = 0, osz = 0;
+            for (let k = 0; k < 6; k++) {
+                const nb = Nb(m, k);
+                if (nb < 0 || !inside[nb]) {
+                    outCnt++;
+                    if (nb >= 0) {
+                        const dx = xz[nb].x - mPos.x, dz = xz[nb].z - mPos.z;
+                        const l = Math.hypot(dx, dz);
+                        if (l * l > 1e-6) { osx += dx / l; osz += dz / l; }
+                    }
+                } else if (centerRiver[nb] && (riverW[nb] < riverW[m] || (riverW[nb] === riverW[m] && nb < m))) {
+                    hasLowerRiver = true;
                 }
-                if (chain.length > 0) edgeChains.push(chain);
             }
-        }
+            if (outCnt === 0 || hasLowerRiver) continue;
 
-        // 河川末端の流下方向（フォールバックおよび方向ブレンド用）
-        let flowDirX = 0, flowDirZ = 0;
-        if (riverCenterOrdered.length >= 2) {
-            const mNode = riverCenterOrdered[riverCenterOrdered.length - 1];
-            const prevNode = riverCenterOrdered[Math.max(0, riverCenterOrdered.length - 2)];
-            const fdx = xz[mNode].x - xz[prevNode].x;
-            const fdz = xz[mNode].z - xz[prevNode].z;
-            const fLen = Math.hypot(fdx, fdz);
-            if (fLen > 1e-4) { flowDirX = fdx / fLen; flowDirZ = fdz / fLen; }
-        }
+            let startOutK = -1;
+            for (let k = 0; k < 6; k++) {
+                if (!isNbInside(m, k) && isNbInside(m, (k + 5) % 6)) { startOutK = k; break; }
+            }
+            if (startOutK < 0) continue;
+            let endOutK = startOutK;
+            for (let s = 0; s < 5; s++) {
+                const nextK = (endOutK + 1) % 6;
+                if (isNbInside(m, nextK)) break;
+                endOutK = nextK;
+            }
+            const rightFallback = Nb(m, (startOutK + 5) % 6);
+            const leftFallback = Nb(m, (endOutK + 1) % 6);
+            if (rightFallback < 0 || leftFallback < 0 || rightFallback === leftFallback) continue;
 
-        const fallDropBase = bottomDepth * 1.18 + 15.0;
-        const foamCol = lerpColor(palette.water, { r: 0.94, g: 0.98, b: 1.0 }, 0.56);
-        const tauSteps = [0.0, 0.035, 0.08, 0.14, 0.22, 0.32, 0.44, 0.57, 0.71, 0.85, 1.0];
-
-        for (let cIdx = 0; cIdx < edgeChains.length; cIdx++) {
-            const chain = edgeChains[cIdx];
-
-            // 各境界辺を水面と岩岸(H=W)の正確な交点でクリップし、土手の岩にわずかに食い込むリップ折れ線(lipPoly)を作成
-            const lipPoly = [];
-            const pushLipPt = (pt) => {
-                if (lipPoly.length > 0) {
-                    const prev = lipPoly[lipPoly.length - 1];
-                    if (Math.hypot(pt.x - prev.x, pt.z - prev.z) < 0.04) return;
+            const wCenter = riverW[m];
+            let fsx = 0, fsz = 0;
+            for (let k = 0; k < 6; k++) {
+                const nb = Nb(m, k);
+                if (nb >= 0 && inside[nb] && centerRiver[nb] && riverW[nb] > wCenter) {
+                    const dx = mPos.x - xz[nb].x, dz = mPos.z - xz[nb].z;
+                    const l = Math.hypot(dx, dz);
+                    if (l * l > 1e-6) { fsx += dx / l; fsz += dz / l; }
                 }
-                lipPoly.push(pt);
+            }
+            const flowLen = Math.hypot(fsx, fsz);
+            const hasFlow = flowLen * flowLen > 1e-6;
+            let geoX, geoZ;
+            if (osx * osx + osz * osz > 1e-6) {
+                const l = Math.hypot(osx, osz); geoX = osx / l; geoZ = osz / l;
+            } else {
+                const pl = Math.hypot(mPos.x, mPos.z);
+                if (pl * pl > 1e-6) { geoX = mPos.x / pl; geoZ = mPos.z / pl; } else { geoX = 1; geoZ = 0; }
+            }
+            const blendOut = (gx, gz) => {
+                if (!hasFlow) return { x: gx, z: gz };
+                const bx = gx * 0.72 + (fsx / flowLen) * 0.28, bz = gz * 0.72 + (fsz / flowLen) * 0.28;
+                const bl = Math.hypot(bx, bz) || 1;
+                return { x: bx / bl, z: bz / bl };
             };
+            let outDir = blendOut(geoX, geoZ);
+            let sideAxis = { x: -outDir.z, z: outDir.x };
 
-            let rimOutX = 0, rimOutZ = 0;
-            for (const e of chain) {
-                const pA = Pos(e.u, e.wyU), pB = Pos(e.v, e.wyV);
-                const bedA = H[e.u] + oy, bedB = H[e.v] + oy;
-                const dA = pA.y - bedA;
-                const dB = pB.y - bedB;
-                if (dA <= 0.0 && dB <= 0.0) continue;
+            // 外周リングに沿って実際の河川幅(両岸の岸辺)まで辿る
+            const visitedRim = new Set([m]);
+            const leftChain = [], rightChain = [];
+            let bankL = -1, bankR = -1;
+            const maxWalkSpan = Math.max(cellSize * 2.5, riverWidth * 1.4);
 
-                let t0 = 0.0, t1 = 1.0;
-                if (dA <= 0.0 && dB > 0.0) {
-                    const tHit = (-dA) / Math.max(1e-5, dB - dA);
-                    t0 = Math.max(0.0, tHit - 0.06);
-                } else if (dA > 0.0 && dB <= 0.0) {
-                    const tHit = dA / Math.max(1e-5, dA - dB);
-                    t1 = Math.min(1.0, tHit + 0.06);
+            const walk = (dirX, dirZ, chain) => {
+                let cur = m, bank = -1;
+                for (let h = 0; h < 14; h++) {
+                    const nextV = stepRiverMouthRim(cur, dirX, dirZ);
+                    if (nextV < 0 || visitedRim.has(nextV)) break;
+                    if (Math.hypot(xz[nextV].x - mPos.x, xz[nextV].z - mPos.z) > maxWalkSpan || lakeId[nextV] > 0 || mouthUsed[nextV]) break;
+                    if (!river[nextV]) { bank = nextV; break; }
+                    visitedRim.add(nextV);
+                    chain.push(nextV);
+                    cur = nextV;
                 }
-                if (t1 - t0 < 0.02) continue;
+                return bank;
+            };
+            bankL = walk(sideAxis.x, sideAxis.z, leftChain);
+            if (bankL < 0 && leftFallback >= 0 && !river[leftFallback] && inside[leftFallback]) bankL = leftFallback;
+            bankR = walk(-sideAxis.x, -sideAxis.z, rightChain);
+            if (bankR < 0 && rightFallback >= 0 && !river[rightFallback] && inside[rightFallback]) bankR = rightFallback;
 
-                const interp = (t) => ({
-                    x: pA.x + (pB.x - pA.x) * t,
-                    y: pA.y + (pB.y - pA.y) * t,
-                    z: pA.z + (pB.z - pA.z) * t,
-                    bedY: bedA + (bedB - bedA) * t
+            const rimVerts = [...leftChain.slice().reverse(), m, ...rightChain];
+            for (const rv of rimVerts) mouthUsed[rv] = 1;
+
+            const lastL = rimVerts[0], lastR = rimVerts[rimVerts.length - 1];
+            const wLastL = waterSurfaceY(lastL) ?? wCenter;
+            const wLastR = waterSurfaceY(lastR) ?? wCenter;
+
+            let startL = Pos(lastL, wLastL);
+            if (bankL >= 0) {
+                const wb = waterSurfaceY(bankL);
+                if (wb !== null) startL = lerpPt(Pos(lastL, wLastL), Pos(bankL, wb), effectiveBankRatio(wLastL, H[lastL], wb, H[bankL]));
+            }
+            let startR = Pos(lastR, wLastR);
+            if (bankR >= 0) {
+                const wb = waterSurfaceY(bankR);
+                if (wb !== null) startR = lerpPt(Pos(lastR, wLastR), Pos(bankR, wb), effectiveBankRatio(wLastR, H[lastR], wb, H[bankR]));
+            }
+
+            // 河口全体の法線で外向き方向と左右軸を整える
+            let rosx = 0, rosz = 0;
+            for (const rv of rimVerts) {
+                for (let k = 0; k < 6; k++) {
+                    const nb = Nb(rv, k);
+                    if (nb >= 0 && !inside[nb]) {
+                        const dx = xz[nb].x - xz[rv].x, dz = xz[nb].z - xz[rv].z;
+                        const l = Math.hypot(dx, dz);
+                        if (l * l > 1e-6) { rosx += dx / l; rosz += dz / l; }
+                    }
+                }
+            }
+            if (rosx * rosx + rosz * rosz > 1e-6) {
+                const l = Math.hypot(rosx, rosz); outDir = blendOut(rosx / l, rosz / l);
+            } else {
+                outDir = blendOut(geoX, geoZ);
+            }
+            sideAxis = { x: -outDir.z, z: outDir.x };
+            const chordX = startL.x - startR.x, chordZ = startL.z - startR.z;
+            if (chordX * sideAxis.x + chordZ * sideAxis.z < 0) sideAxis = { x: -sideAxis.x, z: -sideAxis.z };
+
+            const lipPts = [startL];
+            const dist3 = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+            for (const rv of rimVerts) {
+                const wy = waterSurfaceY(rv) ?? wCenter;
+                const rp = Pos(rv, wy);
+                if (dist3(lipPts[lipPts.length - 1], rp) > 0.05) lipPts.push(rp);
+            }
+            if (dist3(lipPts[lipPts.length - 1], startR) > 0.05) lipPts.push(startR);
+            if (lipPts.length < 2) continue;
+
+            const cumLen = new Array(lipPts.length).fill(0);
+            for (let k = 1; k < lipPts.length; k++) {
+                cumLen[k] = cumLen[k - 1] + Math.hypot(lipPts[k].x - lipPts[k - 1].x, lipPts[k].z - lipPts[k - 1].z);
+            }
+            const totalPolyLen = cumLen[lipPts.length - 1];
+            const mouthWidth = Math.max(cellSize * 0.65, Math.hypot(chordX, chordZ));
+            const cols = clamp(Math.ceil(mouthWidth / Math.max(2, cellSize * 0.9)), 3, 9);
+
+            const midX = 0.5 * (startL.x + startR.x), midZ = 0.5 * (startL.z + startR.z);
+            const lat0 = [], fwd0 = [], y0 = [];
+            let maxFwd0 = -Infinity, sumY0 = 0;
+            for (let j = 0; j <= cols; j++) {
+                const sp = samplePolyline(lipPts, cumLen, totalPolyLen, totalPolyLen * (j / cols));
+                const rx = sp.x - midX, rz = sp.z - midZ;
+                lat0.push(rx * sideAxis.x + rz * sideAxis.z);
+                fwd0.push(rx * outDir.x + rz * outDir.z);
+                y0.push(sp.y);
+                sumY0 += sp.y;
+                if (fwd0[j] > maxFwd0) maxFwd0 = fwd0[j];
+            }
+            const avgLipY = sumY0 / (cols + 1);
+
+            let maxRimFwd = 0;
+            for (const rv of rimVerts) {
+                for (let k = 0; k < 6; k++) {
+                    const nb = Nb(rv, k);
+                    if (nb >= 0 && !inside[nb]) {
+                        const proj = (xz[nb].x - (midX - ox)) * outDir.x + (xz[nb].z - (midZ - oz)) * outDir.z;
+                        if (proj > maxRimFwd) maxRimFwd = proj;
+                    }
+                }
+            }
+            const jetReach = Math.max(cellSize * 1.15, Math.max(maxRimFwd, maxFwd0) + cellSize * 0.50);
+
+            // 川幅に合わせて滝口を始め、落下するにつれて削られた筋のように自然に細く絞る
+            const endWidthRatio = lerpNum(0.36, 0.54, clamp(mouthWidth / Math.max(1, riverWidth * 1.4), 0, 1));
+
+            const front = [], back = [];
+            const fwdCurve = new Array(steps + 1).fill(0);
+            const yCurve = new Array(steps + 1).fill(0);
+            const ringCol = new Array(steps + 1);
+
+            const lipInset = cellSize * 0.14;
+            const row0 = [];
+            for (let j = 0; j <= cols; j++) {
+                row0.push({
+                    x: midX + outDir.x * (fwd0[j] - lipInset) + sideAxis.x * lat0[j],
+                    y: y0[j] - 0.02,
+                    z: midZ + outDir.z * (fwd0[j] - lipInset) + sideAxis.z * lat0[j]
                 });
-                const q0 = interp(t0);
-                const q1 = interp(t1);
-                pushLipPt(q0);
-                pushLipPt(q1);
-
-                // CCW上面境界辺 (q0 -> q1) の右側 (-dz, 0, dx) が崖の外向き法線
-                rimOutX += -(q1.z - q0.z);
-                rimOutZ += (q1.x - q0.x);
             }
+            front.push(row0);
+            fwdCurve[0] = 0.5 * (fwd0[0] + fwd0[cols]) - lipInset;
+            yCurve[0] = avgLipY - 0.02;
+            ringCol[0] = waterCol;
 
-            if (lipPoly.length < 2) continue;
-
-            // 元の折れ線頂点を100%保持したまま長い辺のみ細分割し、水面エッジとの完全密着を保証する
-            const lipSamples = [lipPoly[0]];
-            const targetSegLen = Math.max(0.72, cellSize * 0.45);
-            for (let i = 0; i < lipPoly.length - 1; i++) {
-                const aPt = lipPoly[i], bPt = lipPoly[i + 1];
-                const segL = Math.hypot(bPt.x - aPt.x, bPt.z - aPt.z);
-                const sub = Math.max(1, Math.min(4, Math.ceil(segL / targetSegLen)));
-                for (let k = 1; k <= sub; k++) {
-                    const t = k / sub;
-                    lipSamples.push({
-                        x: aPt.x + (bPt.x - aPt.x) * t,
-                        y: aPt.y + (bPt.y - aPt.y) * t,
-                        z: aPt.z + (bPt.z - aPt.z) * t,
-                        bedY: aPt.bedY + (bPt.bedY - aPt.bedY) * t
-                    });
+            for (let s = 1; s <= steps; s++) {
+                const row = [];
+                if (s <= curveSteps) {
+                    const tau = s / curveSteps;
+                    const reachFrac = 1 - Math.pow(1 - tau, 4.2);
+                    const dropFrac = Math.pow(tau, 3.2);
+                    const wScale = lerpNum(1.0, endWidthRatio, smoothstep(0.06, 0.72, tau));
+                    const archWeight = smoothstep(0, 0.30, tau);
+                    let fwdCenter = 0;
+                    for (let j = 0; j <= cols; j++) {
+                        const uNorm = 2 * (j / cols) - 1;
+                        const archProfile = 1 - uNorm * uNorm;
+                        const fwdJ = lerpNum(fwd0[j], jetReach, reachFrac) + cellSize * 0.14 * archProfile * archWeight;
+                        const latJ = lat0[j] * wScale;
+                        const baseYJ = lerpNum(y0[j], avgLipY, smoothstep(0, 0.15, tau));
+                        const yJ = lerpNum(baseYJ, curveEndY, dropFrac);
+                        row.push({
+                            x: midX + outDir.x * fwdJ + sideAxis.x * latJ,
+                            y: yJ,
+                            z: midZ + outDir.z * fwdJ + sideAxis.z * latJ
+                        });
+                        if (j === (cols >> 1)) fwdCenter = fwdJ;
+                    }
+                    fwdCurve[s] = fwdCenter;
+                    yCurve[s] = lerpNum(avgLipY, curveEndY, dropFrac);
+                    const foam = lerpColor(waterCol, foamTint, clamp(tau * 0.65, 0, 1));
+                    ringCol[s] = shadeColor(foam, rng.next() * 0.06 - 0.03);
+                } else {
+                    const yExtLocal = extYs[s - curveSteps - 1];
+                    const yExt = yExtLocal + oy;
+                    for (let j = 0; j <= cols; j++) {
+                        row.push({ x: front[curveSteps][j].x, y: yExt, z: front[curveSteps][j].z });
+                    }
+                    fwdCurve[s] = fwdCurve[curveSteps];
+                    yCurve[s] = yExt;
+                    const foamPhase = clamp((-yExtLocal - 100) / 650, 0, 1);
+                    const extCol = lerpColor(waterCol, foamTint, lerpNum(0.65, 0.78, foamPhase));
+                    ringCol[s] = shadeColor(extCol, rng.next() * 0.06 - 0.03);
                 }
+                front.push(row);
             }
-
-            const cols = lipSamples.length - 1;
-            if (cols < 1) continue;
-
-            // 各サンプル点の弧長と中心点を算出
-            const arcLens = [0];
-            for (let j = 1; j <= cols; j++) {
-                arcLens.push(arcLens[j - 1] + Math.hypot(lipSamples[j].x - lipSamples[j - 1].x, lipSamples[j].z - lipSamples[j - 1].z));
-            }
-            const totalLipLen = arcLens[cols];
-            if (totalLipLen < 0.35) continue;
-
-            // 崖の外向き法線と河川流下方向をブレンドして自然な飛び出し方向を決定
-            const rLen = Math.hypot(rimOutX, rimOutZ) || 1;
-            let outX = rimOutX / rLen, outZ = rimOutZ / rLen;
-            if (Math.hypot(flowDirX, flowDirZ) > 0.1 && (flowDirX * outX + flowDirZ * outZ) > 0.15) {
-                outX = outX * 0.68 + flowDirX * 0.32;
-                outZ = outZ * 0.68 + flowDirZ * 0.32;
-                const oLen = Math.hypot(outX, outZ) || 1;
-                outX /= oLen; outZ /= oLen;
-            }
-
-            // 中心座標（弧長50%位置）
-            let midCenterX = lipSamples[0].x, midCenterZ = lipSamples[0].z;
-            const halfArc = totalLipLen * 0.5;
-            for (let j = 1; j <= cols; j++) {
-                if (arcLens[j] >= halfArc) {
-                    const span = Math.max(1e-5, arcLens[j] - arcLens[j - 1]);
-                    const f = (halfArc - arcLens[j - 1]) / span;
-                    midCenterX = lipSamples[j - 1].x + (lipSamples[j].x - lipSamples[j - 1].x) * f;
-                    midCenterZ = lipSamples[j - 1].z + (lipSamples[j].z - lipSamples[j - 1].z) * f;
-                    break;
-                }
-            }
-
-            const steps = tauSteps.length - 1;
-            const front = [];
-            const back = [];
-            const colGrid = [];
 
             for (let s = 0; s <= steps; s++) {
-                const tau = tauSteps[s];
-                const rowF = [], rowB = [], rowCol = [];
-                const reachBase = (1.0 - Math.pow(1.0 - tau, 2.55)) * (cellSize * 1.18);
-                const wShrink = 0.24 * smoothstep(0.06, 0.96, tau);
-                const crestFoam = Math.exp(-Math.pow((tau - 0.13) / 0.11, 2)) * 0.32;
-                const fallFoam = smoothstep(0.18, 1.0, tau) * 0.58;
-
+                const tauCurve = Math.min(1, s / curveSteps);
+                const sPrev = Math.max(0, s - 1), sNext = Math.min(steps, s + 1);
+                const dfwd = fwdCurve[sNext] - fwdCurve[sPrev];
+                const dy = yCurve[sNext] - yCurve[sPrev];
+                // in2 = (dy, -dfwd): 水流の背面方向
+                let bx = 0, by = -1, bz = 0;
+                if (dy * dy + dfwd * dfwd > 1e-6) {
+                    const vx = outDir.x * dy, vy = -dfwd, vz = outDir.z * dy;
+                    const vl = Math.hypot(vx, vy, vz) || 1;
+                    bx = vx / vl; by = vy / vl; bz = vz / vl;
+                }
+                const wScale = lerpNum(1.0, endWidthRatio, smoothstep(0.06, 0.72, tauCurve));
+                const thickBase = lerpNum(0.36, 0.74, smoothstep(0, 0.35, tauCurve)) * lerpNum(0.65, 1.0, wScale);
+                const row = [];
                 for (let j = 0; j <= cols; j++) {
-                    const sp = lipSamples[j];
-                    const u = (arcLens[j] / totalLipLen) * 2.0 - 1.0; // -1 .. +1
-                    const edgeMask = Math.max(0.0, 1.0 - u * u);
-                    const localDepth = Math.max(0.18, sp.y - sp.bedY);
-                    const baseWaterCol = computeWaterDepthColor(localDepth, 0);
-
-                    if (s === 0) {
-                        // s = 0: 前面は水面メッシュの末端エッジと100%完全一致、背面は川底の岩へ直接アンカー
-                        rowF.push({ x: sp.x, y: sp.y, z: sp.z });
-                        rowB.push({
-                            x: sp.x - outX * 0.24,
-                            y: Math.min(sp.y - 0.14, sp.bedY - 0.16),
-                            z: sp.z - outZ * 0.24
-                        });
-                        rowCol.push(baseWaterCol);
-                    } else {
-                        const colDrop = fallDropBase * (0.76 + 0.24 * edgeMask + 0.06 * Math.sin(j * 3.1 + islCfg.seed + cIdx));
-                        const arch = edgeMask * 0.24 * cellSize * smoothstep(0.0, 0.22, tau);
-                        const ripple = Math.sin(j * 2.3 + s * 1.45 + islCfg.seed) * 0.08 * cellSize * smoothstep(0.0, 0.16, tau) * (0.35 + 0.65 * edgeMask);
-                        const fwd = reachBase + arch + ripple;
-                        const drop = Math.pow(tau, 1.82) * colDrop;
-
-                        const bx = sp.x + (midCenterX - sp.x) * wShrink;
-                        const bz = sp.z + (midCenterZ - sp.z) * wShrink;
-                        const fx = bx + outX * fwd;
-                        const fy = sp.y - drop;
-                        const fz = bz + outZ * fwd;
-                        rowF.push({ x: fx, y: fy, z: fz });
-
-                        // 落ち口の水深厚から落下中の水柱厚へ滑らかに絞り、横から見ても空洞ゼロの立体水流にする
-                        const streamThick = 0.32 + 0.16 * edgeMask;
-                        const thickZ = 0.24 + (streamThick - 0.24) * smoothstep(0.0, 0.18, tau);
-                        const mouthBedBlend = (localDepth + 0.14) * (1.0 - smoothstep(0.0, 0.22, tau));
-                        const backFwd = Math.max(-0.20, fwd - thickZ);
-                        rowB.push({
-                            x: bx + outX * backFwd,
-                            y: fy - mouthBedBlend,
-                            z: bz + outZ * backFwd
-                        });
-
-                        const streak = Math.sin(j * 2.8 + s * 0.55 + islCfg.seed) * 0.045 * smoothstep(0.0, 0.25, tau);
-                        const foamMix = clamp(crestFoam * (0.55 + 0.45 * edgeMask) + fallFoam, 0.0, 0.86);
-                        rowCol.push(shadeColor(lerpColor(baseWaterCol, foamCol, foamMix), streak));
-                    }
+                    const uNorm = 2 * (j / cols) - 1;
+                    const archProfile = 1 - uNorm * uNorm;
+                    const colThick = thickBase * (0.65 + 0.35 * archProfile);
+                    const f = front[s][j];
+                    row.push({ x: f.x + bx * colThick, y: f.y + by * colThick, z: f.z + bz * colThick });
                 }
-                front.push(rowF);
-                back.push(rowB);
-                colGrid.push(rowCol);
+                back.push(row);
             }
 
-            // 1) 前面（先に描画して半透明の深度テストで奥の背面が二重透けしないようにする）
+            const side3 = { x: sideAxis.x, y: 0, z: sideAxis.z };
+            const sideNeg = { x: -sideAxis.x, y: 0, z: -sideAxis.z };
             for (let s = 0; s < steps; s++) {
-                const tauMid = (tauSteps[s] + tauSteps[s + 1]) * 0.5;
-                const fOut = { x: outX, y: 0.42 * (1.0 - smoothstep(0.0, 0.35, tauMid)), z: outZ };
+                const c0 = ringCol[s], c1 = ringCol[s + 1];
+                const dfwd = fwdCurve[s + 1] - fwdCurve[s];
+                const dy = yCurve[s + 1] - yCurve[s];
+                // n2 = (-dy, dfwd)
+                let fwdOut = { x: outDir.x * 0.7071, y: 0.7071, z: outDir.z * 0.7071 };
+                if (dy * dy + dfwd * dfwd > 1e-6) {
+                    const vx = outDir.x * -dy, vy = dfwd, vz = outDir.z * -dy;
+                    const vl = Math.hypot(vx, vy, vz) || 1;
+                    fwdOut = { x: vx / vl, y: vy / vl, z: vz / vl };
+                }
+                const fwdIn = { x: -fwdOut.x, y: -fwdOut.y, z: -fwdOut.z };
                 for (let j = 0; j < cols; j++) {
-                    waterMb.quad(
-                        front[s][j], front[s][j + 1], front[s + 1][j + 1], front[s + 1][j],
-                        colGrid[s][j], colGrid[s][j + 1], colGrid[s + 1][j + 1], colGrid[s + 1][j],
-                        fOut, 1.0
-                    );
-                    waterVertCount += 6;
+                    addQuadWithCenter(front[s][j], front[s][j + 1], front[s + 1][j], front[s + 1][j + 1], c0, c1, fwdOut);
+                    addQuadWithCenter(back[s][j + 1], back[s][j], back[s + 1][j + 1], back[s + 1][j], c0, c1, fwdIn);
                 }
+                addQuadWithCenter(back[s][0], front[s][0], back[s + 1][0], front[s + 1][0], c0, c1, side3);
+                addQuadWithCenter(front[s][cols], back[s][cols], front[s + 1][cols], back[s + 1][cols], c0, c1, sideNeg);
             }
 
-            // 2) 左右の側面を閉じて立体水柱にする
-            const sideDirL = { x: -(lipSamples[cols].x - lipSamples[0].x), y: 0.05, z: -(lipSamples[cols].z - lipSamples[0].z) };
-            const sideDirR = { x: -sideDirL.x, y: 0.05, z: -sideDirL.z };
-            for (let s = 0; s < steps; s++) {
-                waterMb.quad(
-                    front[s][0], back[s][0], back[s + 1][0], front[s + 1][0],
-                    colGrid[s][0], colGrid[s][0], colGrid[s + 1][0], colGrid[s + 1][0],
-                    sideDirL, 1.0
-                );
-                waterMb.quad(
-                    back[s][cols], front[s][cols], front[s + 1][cols], back[s + 1][cols],
-                    colGrid[s][cols], colGrid[s][cols], colGrid[s + 1][cols], colGrid[s + 1][cols],
-                    sideDirR, 1.0
-                );
-                waterVertCount += 12;
-            }
-
-            // 3) 背面
-            for (let s = 0; s < steps; s++) {
-                const bOut = { x: -outX, y: -0.25, z: -outZ };
-                for (let j = 0; j < cols; j++) {
-                    waterMb.quad(
-                        back[s][j + 1], back[s][j], back[s + 1][j], back[s + 1][j + 1],
-                        colGrid[s][j + 1], colGrid[s][j], colGrid[s + 1][j], colGrid[s + 1][j + 1],
-                        bOut, 1.0
-                    );
-                    waterVertCount += 6;
-                }
+            const cBot = ringCol[steps];
+            const down = { x: 0, y: -1, z: 0 };
+            for (let j = 0; j < cols; j++) {
+                waterMb.tri(front[steps][j], front[steps][j + 1], back[steps][j + 1], cBot, cBot, cBot, down, 1.0);
+                waterMb.tri(front[steps][j], back[steps][j + 1], back[steps][j], cBot, cBot, cBot, down, 1.0);
+                waterVertCount += 6;
             }
         }
-    }
+    })();
 
     // ---- 8. BuildTrees & BuildGrassMesh (`FloatingTerrainBuilder.cs` Poissonサンプリング + 疎密再現) ----
     const vegMb = new ColoredMeshBuilder();
