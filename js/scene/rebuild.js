@@ -13,12 +13,10 @@ export function rebuildScene() {
 
     const terrainMat = new THREE.MeshLambertMaterial({
         vertexColors: true,
-        flatShading: true,
         wireframe: showFlags.wire
     });
     const waterMat = new THREE.MeshLambertMaterial({
         vertexColors: true,
-        flatShading: true,
         transparent: true,
         opacity: 0.88,
         wireframe: showFlags.wire
