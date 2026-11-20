@@ -7,11 +7,15 @@ import { clamp } from '../utils/math.js';
 // Unity版 `FloatingTerrainPrefabCreator` と同じ構成で書き出す:
 //   <ステージ名>
 //     ├ Terrain : 地形(氷含む) + MeshCollider
-//     ├ Water   : 水面（当たり判定なし）
+//     ├ Water   : 水面・滝（LowPolyWater.mat・当たり判定なし）
 //     ├ Trees   : 木 + 簡易コライダー(幹の筒+葉冠の角錐)のMeshCollider
 //     ├ Grass   : 草（当たり判定なし）
 //     └ Bridges : 橋(板・橋脚) + 床だけのMeshCollider
-const SHARED_MATERIAL_GUID = '0e85f5f68f616314688fac45cd8b35c3';
+// マテリアルのGUID（unity/ フォルダ内のアセットと対応）
+//   LowPolyVertexColor.mat : お使いのプロジェクトの共有マテリアル（不透明・頂点カラー）
+//   LowPolyWater.mat       : 水用の半透明マテリアル（unity/LowPolyWater.unitypackage で取り込み）
+const SHARED_MATERIAL_GUID = '4b6c0ee4556d04f4ba685ab776a31dad';
+const WATER_MATERIAL_GUID = '3c4247bb74ca45c8ac318105ca24571c';
 
 function concatMeshes(list) {
     const out = new ColoredMeshBuilder();
@@ -94,7 +98,7 @@ MeshRenderer:
   m_Enabled: 1
   m_CastShadows: ${shadow}
   m_Materials:
-  - {fileID: 2100000, guid: ${SHARED_MATERIAL_GUID}, type: 2}`);
+  - {fileID: 2100000, guid: ${name === 'Water' ? WATER_MATERIAL_GUID : SHARED_MATERIAL_GUID}, type: 2}`);
         usedMeshes.add(vis);
         if (col && parts[col].v.length > 0) {
             docs.push(`--- !u!64 &${mc}
