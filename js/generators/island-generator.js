@@ -2709,6 +2709,8 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
 
     // ---- 8. BuildTrees & BuildGrassMesh (`FloatingTerrainBuilder.cs` Poissonサンプリング + 疎密再現) ----
     const vegMb = new ColoredMeshBuilder();
+    // 木の簡易当たり判定メッシュ（幹: 蓋なし6角柱 / 葉冠: 底面を閉じた7角錐）。見た目メッシュより大幅に軽い。
+    const treeColMb = new ColoredMeshBuilder();
     const vr = new SeededRandom(islCfg.seed + 7);
     let treeCount = 0, grassClumpCount = 0;
 
@@ -2865,6 +2867,36 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
         }
     }
 
+    // 木の当たり判定（Unity版 `AddOpenCylinder` + `AddSimpleCone` 相当）
+    function addTreeCollider(cx, cy, cz, crownStart, span, crownRad, scaleXZ, scaleY) {
+        const col = { r: 0.5, g: 0.5, b: 0.5 };
+        const trunkSides = 6, coneSides = 7;
+        const trunkY0 = cy - 0.2 * scaleY;
+        const trunkY1 = cy + Math.max(2.05, crownStart + 0.35) * scaleY;
+        const trunkR = 0.18 * scaleXZ;
+        for (let i = 0; i < trunkSides; i++) {
+            const a0 = (i * Math.PI * 2.0) / trunkSides, a1 = ((i + 1) * Math.PI * 2.0) / trunkSides;
+            const am = (a0 + a1) * 0.5;
+            const b0 = { x: cx + Math.cos(a0) * trunkR, y: trunkY0, z: cz + Math.sin(a0) * trunkR };
+            const b1 = { x: cx + Math.cos(a1) * trunkR, y: trunkY0, z: cz + Math.sin(a1) * trunkR };
+            const t0 = { x: b0.x, y: trunkY1, z: b0.z };
+            const t1 = { x: b1.x, y: trunkY1, z: b1.z };
+            treeColMb.quad(b0, b1, t1, t0, col, col, col, col, { x: Math.cos(am), y: 0, z: Math.sin(am) }, 1.0);
+        }
+        const coneY0 = cy + crownStart * scaleY;
+        const apex = { x: cx, y: cy + (crownStart + span) * scaleY, z: cz };
+        const baseC = { x: cx, y: coneY0, z: cz };
+        const rad = crownRad * scaleXZ;
+        for (let i = 0; i < coneSides; i++) {
+            const a0 = (i * Math.PI * 2.0) / coneSides, a1 = ((i + 1) * Math.PI * 2.0) / coneSides;
+            const am = (a0 + a1) * 0.5;
+            const r0 = { x: cx + Math.cos(a0) * rad, y: coneY0, z: cz + Math.sin(a0) * rad };
+            const r1 = { x: cx + Math.cos(a1) * rad, y: coneY0, z: cz + Math.sin(a1) * rad };
+            treeColMb.tri(r0, r1, apex, col, col, col, { x: Math.cos(am), y: rad / Math.max(0.1, span * scaleY), z: Math.sin(am) }, 1.0);
+            treeColMb.tri(r1, r0, baseC, col, col, col, { x: 0, y: -1, z: 0 }, 1.0);
+        }
+    }
+
     // ---- 8.1 木の生成 (`BuildTrees`: groveNoise と microGap で森の中に濃い木立と薄い疎林を作る) ----
     const minTreeNy = Math.max(0.74, islCfg.rockSlope + 0.02);
     const treeMinDist = islCfg.treeMinDist !== undefined ? islCfg.treeMinDist : 3.4;
@@ -2902,6 +2934,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
 
             const wx = p.x + ox, wz = p.z + oz, wy = surf.y + oy - 0.18 * sY;
             const trunkTop = Math.max(2.1, crownStart + 0.55);
+            addTreeCollider(wx, wy, wz, crownStart, span, 1.32 * lowerRadScale, sXZ, sY);
             addPrism(wx, wy, wz, -0.2, trunkTop, 0.22, 0.12, 6, palette.trunk, sXZ, sY);
 
             const r1 = 1.32 * lowerRadScale;
@@ -2913,6 +2946,9 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
             treeCount++;
         }
     }
+
+    // 木と草を別メッシュとして書き出せるよう、木の終端位置を記録（以降は草のみ）
+    const treeVertEnd = vegMb.v.length;
 
     // ---- 8.2 草の生成 (`BuildGrassMesh`: 草原エリアに高密度で配置し、bare領域は何も生えない緑の地面として残す) ----
     function addGrassBlade(r0Pt, r1Pt, rootMid, dir, side, widthBlade, heightBlade, lean, rootCol, midCol, tipCol) {
@@ -3047,6 +3083,17 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
         };
     });
 
+    // vegMb（木+草）を、木・草の別メッシュに分割（Unityの Trees / Grass オブジェクト用）
+    const sliceMb = (from, to) => {
+        const mb = new ColoredMeshBuilder();
+        mb.v = vegMb.v.slice(from, to);
+        mb.c = vegMb.c.slice(from, to);
+        mb.a = vegMb.a.slice(from / 3, to / 3);
+        return mb;
+    };
+    const treesMb = sliceMb(0, treeVertEnd);
+    const grassMb = sliceMb(treeVertEnd, vegMb.v.length);
+
     return {
         name: islCfg.name,
         seed: islCfg.seed,
@@ -3061,6 +3108,9 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
         terrainMb,
         waterMb,
         vegMb,
+        treesMb,
+        grassMb,
+        treeColMb,
         entryShorePos: entryResolved.worldPos,
         entryGroundY: entryResolved.groundWorldY,
         exitShorePos: exitResolved.worldPos,

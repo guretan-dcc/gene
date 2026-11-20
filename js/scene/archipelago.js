@@ -36,6 +36,7 @@ export function buildArchipelagoStage() {
     }
 
     const allBridgeMb = new ColoredMeshBuilder();
+    const allBridgeColMb = new ColoredMeshBuilder(); // 橋の当たり判定（床のみ）
     const builtBridges = [];
 
     for (let i = 0; i < builtIslands.length; i++) {
@@ -56,6 +57,11 @@ export function buildArchipelagoStage() {
                     allBridgeMb.v.push(br.mb.v[k]);
                     allBridgeMb.c.push(br.mb.c[k]);
                     allBridgeMb.a.push(br.mb.a[k]);
+                }
+                for (let k = 0; k < br.floorMb.v.length; k++) {
+                    allBridgeColMb.v.push(br.floorMb.v[k]);
+                    allBridgeColMb.c.push(br.floorMb.c[k]);
+                    allBridgeColMb.a.push(br.floorMb.a[k]);
                 }
                 builtBridges.push({ start: ib.start, end: ib.end, mid: br.midPos, islandIdx: i });
             }
@@ -78,6 +84,11 @@ export function buildArchipelagoStage() {
                 allBridgeMb.c.push(br.mb.c[k]);
                 allBridgeMb.a.push(br.mb.a[k]);
             }
+            for (let k = 0; k < br.floorMb.v.length; k++) {
+                allBridgeColMb.v.push(br.floorMb.v[k]);
+                allBridgeColMb.c.push(br.floorMb.c[k]);
+                allBridgeColMb.a.push(br.floorMb.a[k]);
+            }
             builtBridges.push({ start: shoreA, end: shoreB, mid: br.midPos, isInterIsland: true, islandIdx: i });
         }
     }
@@ -89,6 +100,7 @@ export function buildArchipelagoStage() {
         builtIslands,
         builtBridges,
         allBridgeMb,
+        allBridgeColMb,
         spawnPos: firstIsl ? firstIsl.entryShorePos : { x: 0, y: 10, z: 0 },
         goalPos: lastIsl ? lastIsl.exitShorePos : { x: 0, y: 20, z: -40 }
     };

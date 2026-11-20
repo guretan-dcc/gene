@@ -7,10 +7,12 @@ import { SeededRandom } from '../utils/random.js';
 // =========================================================================
 export function buildBridgePlanks(startPt, endPt, width, sag, irregularity, woodColor, bridgeSeed, startGroundY, endGroundY) {
     const mb = new ColoredMeshBuilder();
+    // 当たり判定用の床メッシュ（Unity版 `Walkway`: 板ごとの中心線に沿った平面帯のみ。手すり・橋脚は含めない）
+    const floorMb = new ColoredMeshBuilder();
     const dx = endPt.x - startPt.x;
     const dz = endPt.z - startPt.z;
     const length = Math.hypot(dx, dz);
-    if (length < 0.5) return { mb, midPos: startPt };
+    if (length < 0.5) return { mb, floorMb, midPos: startPt };
 
     const rise = endPt.y - startPt.y;
     const panels = Math.max(3, Math.ceil(Math.hypot(length, rise) / 0.42));
@@ -78,6 +80,13 @@ export function buildBridgePlanks(startPt, endPt, width, sag, irregularity, wood
         const fwdY = segDy / segLen, fwdZ = segDz / segLen;
         const upY = fwdZ, upZ = -fwdY;
 
+        {
+            const fc = { r: 0.5, g: 0.5, b: 0.5 };
+            const fa = toWorld(-half, p.y, p.z), fb = toWorld(-half, q.y, q.z);
+            const fc2 = toWorld(half, q.y, q.z), fd = toWorld(half, p.y, p.z);
+            floorMb.quad(fa, fb, fc2, fd, fc, fc, fc, fc, { x: 0, y: 1, z: 0 }, 1.0);
+        }
+
         const brightness = 1.0 + colorRandom.signed() * colorVariation;
         const plankCol = shadeColor(woodColor, brightness - 1.0);
         const sideCol = shadeColor(plankCol, -0.12);
@@ -115,5 +124,5 @@ export function buildBridgePlanks(startPt, endPt, width, sag, irregularity, wood
     }
 
     const midLocal = getPointLocal(0.5);
-    return { mb, midPos: toWorld(0, midLocal.y, midLocal.z) };
+    return { mb, floorMb, midPos: toWorld(0, midLocal.y, midLocal.z) };
 }

@@ -49,3 +49,17 @@ python3 -m http.server 8000   # → http://localhost:8000/
 - **Ctrl+Z** で元に戻す、**Ctrl+Y** でやり直し（Mac は Cmd）。スライダー・色・ギズモ操作・プリセット変更・JSON読込などが対象。
 - 「JSON保存」で出力した設定ファイルは「JSON読込」で復元できます。
 - 数値欄、または数値欄のある行のラベルを**左右にドラッグ**すると値を調整できます（Shift: 速く / Alt: ゆっくり）。数値欄をクリックするだけなら通常どおり入力できます。
+
+## Unity Prefab 出力の構成
+
+Unity版 `FloatingTerrainPrefabCreator` と同じく、役割ごとにオブジェクトを分けて書き出します。
+
+| オブジェクト | 内容 | MeshCollider |
+|---|---|---|
+| Terrain | 地形（凍結した湖の氷を含む） | 地形メッシュそのもの |
+| Water | 水面・滝 | なし |
+| Trees | 木 | 簡易メッシュ（幹の筒＋葉冠の角錐） |
+| Grass | 草 | なし |
+| Bridges | 橋（板・橋脚） | 床だけのメッシュ |
+
+マテリアルはすべて共有マテリアル（`LowPolyVertexColor.mat` の GUID）を参照します。Water は Unity 側で `IslandWater.mat`（Island/VertexColorLit）に差し替えてください。
