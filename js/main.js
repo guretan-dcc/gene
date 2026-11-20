@@ -1,6 +1,9 @@
 import { initHistory } from './history.js';
 import { rebuildScene } from './scene/rebuild.js';
 import { camera, renderer, scene } from './scene/scene.js';
+// カメラ操作（pointer/wheel イベント）を canvas に登録する副作用インポート。
+// この import が無いとリスナーが一切登録されず、カメラ操作が効かなくなる。
+import './scene/camera-controls.js';
 import { setupInspectorEvents, syncInspectorUI } from './ui/inspector.js';
 import { setupNumberScrub } from './ui/scrub.js';
 import { setupTabs } from './ui/tabs.js';
