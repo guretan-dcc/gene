@@ -2,6 +2,7 @@ import { initHistory } from './history.js';
 import { rebuildScene } from './scene/rebuild.js';
 import { camera, renderer, scene } from './scene/scene.js';
 import { setupInspectorEvents, syncInspectorUI } from './ui/inspector.js';
+import { setupNumberScrub } from './ui/scrub.js';
 import { setupTabs } from './ui/tabs.js';
 
 function onWindowResize() {
@@ -16,6 +17,7 @@ window.addEventListener('resize', onWindowResize);
 
 window.onload = function () {
     setupTabs();
+    setupNumberScrub();
     setupInspectorEvents();
     syncInspectorUI();
     onWindowResize();

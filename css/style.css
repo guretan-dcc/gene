@@ -242,3 +242,7 @@ body {
 .u-tab:hover { color: #ffffff; background: #26262b; }
 .u-tab.active { color: #ffffff; border-bottom-color: #3b82f6; background: #26262b; }
 .u-btn:disabled { opacity: 0.35; cursor: default; }
+
+/* 数値ドラッグ調整（Unity風） */
+.u-row:has(input.u-num) > .u-label { cursor: ew-resize; }
+body.u-scrubbing, body.u-scrubbing * { cursor: ew-resize !important; }
