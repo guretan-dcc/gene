@@ -2267,6 +2267,34 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
         return lerpColor(shallow, deep, smoothstep(0.5, 4.5, depth));
     }
 
+    // ---- 7.0 湖の凍結判定 (Unity版 `lakeFrozen` 相当) ----
+    // 雪が積もる標高の湖は水面を出さず、氷として地形メッシュに追加する（歩行可能・コライダー対象）
+    const snowThresholdAt = (c) => {
+        const px = xz[c].x / half, pz = xz[c].z / half;
+        const jitter = (perlin.fbm(px * 2.2, pz * 2.2, 10, 1.6, 2) - 0.5) * 4.5;
+        return sharedWorldSnowLine + 0.25 + jitter; // 雪ブレンドの中間点 (snowW = 0.5)
+    };
+    const lakeFrozen = [false];
+    for (let lid = 1; lid < lakeLevels.length; lid++) {
+        let cnt = 0, sumThr = 0;
+        for (let c = 0; c < n; c++) {
+            if (lakeId[c] !== lid) continue;
+            cnt++;
+            sumThr += snowThresholdAt(c);
+        }
+        if (cnt === 0) { lakeFrozen.push(false); continue; }
+        const worldLevel = lakeLevels[lid] + oy;
+        const avgThr = sumThr / cnt;
+        // 小さな水たまりが単独で氷化して白い斑点にならないよう、小規模湖は雪線を厳密に見る
+        lakeFrozen.push(cnt < 24
+            ? (worldLevel >= avgThr && worldLevel >= sharedWorldSnowLine - 6.0)
+            : (worldLevel >= avgThr - 2.5));
+    }
+    const isLakeFrozen = (lid) => lid > 0 && lid < lakeFrozen.length && lakeFrozen[lid];
+    const iceBase = lerpColor(palette.water, palette.snow, 0.72);
+    const iceShore = lerpColor(iceBase, palette.snow, 0.55);
+    const iceRng = new SeededRandom(islCfg.seed + 97);
+
     // 水面: 湖と河川を島上面 (inside) の崖縁までに収めて出力（崖外への板状のはみ出しを防ぐ）
     for (let iz = 0; iz < nz - 1; iz++) {
         for (let ix = 0; ix < nx - 1; ix++) {
@@ -2281,6 +2309,13 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                     const y0 = (lakeId[i0] === lid) ? lvl : (!Number.isNaN(riverW[i0]) ? riverW[i0] : lvl);
                     const y1 = (lakeId[i1] === lid) ? lvl : (!Number.isNaN(riverW[i1]) ? riverW[i1] : lvl);
                     const y2 = (lakeId[i2] === lid) ? lvl : (!Number.isNaN(riverW[i2]) ? riverW[i2] : lvl);
+                    if (isLakeFrozen(lid)) {
+                        // 凍結湖: 水面の代わりに氷を地形メッシュへ追加（地形と同じマテリアルで描画・歩行可能）
+                        const iv = iceRng.next() * 0.05 - 0.025;
+                        const ic = (i) => shadeColor(lakeId[i] === lid ? iceBase : iceShore, iv);
+                        terrainMb.tri(Pos(i0, y0), Pos(i1, y1), Pos(i2, y2), ic(i0), ic(i1), ic(i2), upVec, 0.0);
+                        continue;
+                    }
                     waterMb.tri(
                         Pos(i0, y0), Pos(i1, y1), Pos(i2, y2),
                         computeWaterDepthColor(y0 - H[i0], 0),
