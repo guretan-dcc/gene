@@ -1,3 +1,5 @@
+import { clamp } from '../utils/math.js';
+
 // =========================================================================
 // 8. Unity Prefab (.prefab) / JSON / PLY 出力
 // =========================================================================
@@ -14,7 +16,7 @@ function uint32ToHexLE(val) {
     return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-function serializeMeshToUnityYaml(fileId, meshName, mb) {
+export function serializeMeshToUnityYaml(fileId, meshName, mb) {
     const geo = mb.toThreeGeometry();
     const pos = geo.getAttribute('position');
     const nrm = geo.getAttribute('normal');

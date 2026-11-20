@@ -1,3 +1,8 @@
+import { handleAddWaypointOnDoubleClick, handleDragRouteHandleMove, tryBeginDragRouteHandle, tryToggleSegmentOnClick } from './route-editing.js';
+import { camState, camera, canvas, routeEditState, updateCamera } from './scene.js';
+import { selectAndHighlightGizmo } from '../ui/gizmo-highlight.js';
+import { clamp } from '../utils/math.js';
+
 canvas.addEventListener('pointerdown', e => {
     if (e.button === 1) {
         e.preventDefault();

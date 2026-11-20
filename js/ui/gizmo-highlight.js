@@ -1,4 +1,8 @@
-function setFoldoutOpen(panelId, isOpen) {
+import { routeEditState } from '../scene/scene.js';
+import { state } from '../state.js';
+import { syncInspectorUI } from './inspector.js';
+
+export function setFoldoutOpen(panelId, isOpen) {
     const panel = document.getElementById(panelId);
     if (!panel) return;
     panel.classList.toggle('hidden', !isOpen);
@@ -9,7 +13,7 @@ function setFoldoutOpen(panelId, isOpen) {
     }
 }
 
-function selectAndHighlightGizmo(sel, shouldScroll = true) {
+export function selectAndHighlightGizmo(sel, shouldScroll = true) {
     routeEditState.selectedGizmo = sel;
     syncInspectorUI();
 

@@ -1,5 +1,13 @@
+import { rebuildScene } from './rebuild.js';
+import { camera, canvas, raycaster, routeEditState, routeHandleMeshes, segmentToggleMeshes } from './scene.js';
+import { builtArchipelago, state } from '../state.js';
+import { selectAndHighlightGizmo } from '../ui/gizmo-highlight.js';
+import { syncInspectorUI } from '../ui/inspector.js';
+import { showToast } from '../ui/toast.js';
+import { clamp } from '../utils/math.js';
+
 // 3D画面上のダイヤをクリックで区間を強調表示（選択済みを再クリックで 道→橋→トンネル→切断 を切替）
-function tryToggleSegmentOnClick(e) {
+export function tryToggleSegmentOnClick(e) {
     if (!builtArchipelago || segmentToggleMeshes.length === 0) return false;
     raycaster.setFromCamera(getNdcMouse(e), camera);
     const hits = raycaster.intersectObjects(segmentToggleMeshes, false);
@@ -38,7 +46,7 @@ function getNdcMouse(e) {
     );
 }
 
-function tryBeginDragRouteHandle(e) {
+export function tryBeginDragRouteHandle(e) {
     if (!builtArchipelago || routeHandleMeshes.length === 0) return false;
     raycaster.setFromCamera(getNdcMouse(e), camera);
     const hits = raycaster.intersectObjects(routeHandleMeshes, false);
@@ -61,7 +69,7 @@ function tryBeginDragRouteHandle(e) {
     return true;
 }
 
-function handleDragRouteHandleMove(e) {
+export function handleDragRouteHandleMove(e) {
     const drag = routeEditState.draggingHandle;
     if (!drag || !builtArchipelago) return;
     const isl = builtArchipelago.builtIslands[drag.islandIdx];
@@ -131,7 +139,7 @@ function handleDragRouteHandleMove(e) {
     rebuildScene();
 }
 
-function handleAddWaypointOnDoubleClick(e) {
+export function handleAddWaypointOnDoubleClick(e) {
     if (!builtArchipelago) return;
     raycaster.setFromCamera(getNdcMouse(e), camera);
     const terrainMeshes = builtArchipelago.builtIslands.map(isl => isl.terrainMeshObj).filter(Boolean);

@@ -1,4 +1,12 @@
-function renderWaypointListUI() {
+import { rebuildScene } from '../scene/rebuild.js';
+import { routeEditState } from '../scene/scene.js';
+import { markDirtyOrRebuild, state } from '../state.js';
+import { selectAndHighlightGizmo } from './gizmo-highlight.js';
+import { syncInspectorUI } from './inspector.js';
+import { showToast } from './toast.js';
+import { clamp } from '../utils/math.js';
+
+export function renderWaypointListUI() {
     const container = document.getElementById('waypointListContainer');
     if (!container) return;
     container.innerHTML = '';

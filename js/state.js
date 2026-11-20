@@ -1,4 +1,7 @@
-const defaultState = {
+import { createPresetIslands } from './data/presets.js';
+import { rebuildScene } from './scene/rebuild.js';
+
+export const defaultState = {
     stageName: "AdventureArchipelago",
     archPreset: "canyon_pass_3",
     selectedIslandIdx: 1,
@@ -19,12 +22,17 @@ const defaultState = {
     islands: createPresetIslands("canyon_pass_3")
 };
 
-let state = JSON.parse(JSON.stringify(defaultState));
-let builtArchipelago = null;
+export let state = JSON.parse(JSON.stringify(defaultState));
+export let builtArchipelago = null;
 let generationMode = 'realtime'; // 'realtime' | 'manual'
-let hasPendingChanges = false;
+export let hasPendingChanges = false;
 
-function markDirtyOrRebuild(forceImmediate = false) {
+// ES Module では import した変数を他ファイルから再代入できないため、setter 経由で更新する
+export function setState(v) { state = v; }
+export function setBuiltArchipelago(v) { builtArchipelago = v; }
+export function setGenerationMode(v) { generationMode = v; }
+
+export function markDirtyOrRebuild(forceImmediate = false) {
     if (forceImmediate || generationMode === 'realtime') {
         hasPendingChanges = false;
         updatePendingBadgeUI();

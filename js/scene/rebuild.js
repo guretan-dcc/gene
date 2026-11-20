@@ -1,10 +1,15 @@
-function rebuildScene() {
+import { buildArchipelagoStage, showFlags } from './archipelago.js';
+import { createGizmoGroup } from './gizmos.js';
+import { routeEditState, updateCamera, worldGroup } from './scene.js';
+import { builtArchipelago, setBuiltArchipelago, state } from '../state.js';
+
+export function rebuildScene() {
     while (worldGroup.children.length > 0) {
         const ch = worldGroup.children.pop();
         if (ch.geometry) ch.geometry.dispose();
     }
 
-    builtArchipelago = buildArchipelagoStage();
+    setBuiltArchipelago(buildArchipelagoStage());
 
     const terrainMat = new THREE.MeshLambertMaterial({
         vertexColors: true,

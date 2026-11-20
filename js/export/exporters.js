@@ -1,4 +1,10 @@
-function exportUnityPrefab() {
+import { serializeMeshToUnityYaml } from './unity-yaml.js';
+import { ColoredMeshBuilder } from '../mesh/colored-mesh-builder.js';
+import { builtArchipelago, state } from '../state.js';
+import { showToast } from '../ui/toast.js';
+import { clamp } from '../utils/math.js';
+
+export function exportUnityPrefab() {
     if (!builtArchipelago) return;
     const combTerrain = new ColoredMeshBuilder();
     const combWater = new ColoredMeshBuilder();
@@ -62,12 +68,12 @@ ${serializeMeshToUnityYaml(4300001, state.stageName + "_TerrainMesh", combTerrai
     showToast(`${state.stageName}.prefab を出力しました`);
 }
 
-function exportSettingsJson() {
+export function exportSettingsJson() {
     downloadText(`${state.stageName}_Settings.json`, JSON.stringify(state, null, 2));
     showToast("設定JSONを保存しました");
 }
 
-function exportPlyMesh() {
+export function exportPlyMesh() {
     if (!builtArchipelago) return;
     const comb = new ColoredMeshBuilder();
     builtArchipelago.builtIslands.forEach(isl => {

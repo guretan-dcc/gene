@@ -1,4 +1,7 @@
-function createGizmoGroup(arch) {
+import { routeEditState, routeHandleMeshes, segmentToggleMeshes } from './scene.js';
+import { state } from '../state.js';
+
+export function createGizmoGroup(arch) {
     const g = new THREE.Group();
     routeHandleMeshes.length = 0;
     segmentToggleMeshes.length = 0;

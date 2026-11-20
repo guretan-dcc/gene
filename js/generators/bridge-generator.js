@@ -1,7 +1,11 @@
+import { ColoredMeshBuilder } from '../mesh/colored-mesh-builder.js';
+import { shadeColor } from '../utils/math.js';
+import { SeededRandom } from '../utils/random.js';
+
 // =========================================================================
 // 6. `BridgeGeneratorWindow.cs` (`BridgeMeshGenerator`) 忠実移植 (3D高さ支柱対応)
 // =========================================================================
-function buildBridgePlanks(startPt, endPt, width, sag, irregularity, woodColor, bridgeSeed, startGroundY, endGroundY) {
+export function buildBridgePlanks(startPt, endPt, width, sag, irregularity, woodColor, bridgeSeed, startGroundY, endGroundY) {
     const mb = new ColoredMeshBuilder();
     const dx = endPt.x - startPt.x;
     const dz = endPt.z - startPt.z;

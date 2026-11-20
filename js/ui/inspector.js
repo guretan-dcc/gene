@@ -1,4 +1,16 @@
-function syncInspectorUI() {
+import { createPresetIslands } from '../data/presets.js';
+import { exportPlyMesh, exportSettingsJson, exportUnityPrefab } from '../export/exporters.js';
+import { showFlags } from '../scene/archipelago.js';
+import { rebuildScene } from '../scene/rebuild.js';
+import { camState, routeEditState, updateCamera, worldGroup } from '../scene/scene.js';
+import { builtArchipelago, defaultState, hasPendingChanges, markDirtyOrRebuild, setGenerationMode, setState, state } from '../state.js';
+import { setFoldoutOpen } from './gizmo-highlight.js';
+import { renderIslandListUI } from './island-list.js';
+import { showToast } from './toast.js';
+import { renderWaypointListUI } from './waypoint-list.js';
+import { clamp } from '../utils/math.js';
+
+export function syncInspectorUI() {
     renderIslandListUI();
     renderWaypointListUI();
     const isl = state.islands[state.selectedIslandIdx] || state.islands[0];
@@ -50,13 +62,13 @@ function focusSelectedIsland() {
     updateCamera();
 }
 
-function setupInspectorEvents() {
+export function setupInspectorEvents() {
     const btnRealtime = document.getElementById('btnModeRealtime');
     const btnManual = document.getElementById('btnModeManual');
     const btnGenerateNow = document.getElementById('btnGenerateNow');
 
     function setGenMode(mode) {
-        generationMode = mode;
+        setGenerationMode(mode);
         const isRT = (mode === 'realtime');
         btnRealtime.className = isRT
             ? 'px-2.5 py-1 text-[11px] rounded bg-[#2563eb] text-white font-medium'
@@ -223,7 +235,7 @@ function setupInspectorEvents() {
     });
 
     document.getElementById('btnResetAll').addEventListener('click', () => {
-        state = JSON.parse(JSON.stringify(defaultState));
+        setState(JSON.parse(JSON.stringify(defaultState)));
         routeEditState.selectedGizmo = null;
         rebuildScene();
         syncInspectorUI();

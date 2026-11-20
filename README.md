@@ -28,4 +28,13 @@ js/
   main.js                     起動処理
 ```
 
-各 JS は ES Module ではなく通常の `<script>` で、`index.html` に書かれた順に読み込まれます（グローバルスコープ共有）。順序を変えると動かなくなります。
+各 JS は ES Module（`import` / `export`）で、`index.html` は `js/main.js` だけを読み込みます。依存関係は各ファイル先頭の `import` を見てください。
+他ファイルから再代入が必要な状態変数（`state` / `builtArchipelago` / `generationMode`）は `js/state.js` の `setState` などの setter 経由で更新します。
+
+## 起動方法
+
+ES Module は `file://` で直接開くと動かないため、ローカルサーバー経由で開いてください（GitHub Pages ならそのまま動きます）。
+
+```
+python3 -m http.server 8000   # → http://localhost:8000/
+```

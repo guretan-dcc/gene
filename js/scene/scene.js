@@ -1,17 +1,19 @@
+import { clamp } from '../utils/math.js';
+
 // =========================================================================
 // 3. Three.js シーン & カメラ制御
 // =========================================================================
-const canvas = document.getElementById('sceneCanvas');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+export const canvas = document.getElementById('sceneCanvas');
+export const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-const scene = new THREE.Scene();
+export const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x161d26);
 scene.fog = new THREE.FogExp2(0x161d26, 0.0011);
 
-const camera = new THREE.PerspectiveCamera(48, 1, 0.3, 2500);
+export const camera = new THREE.PerspectiveCamera(48, 1, 0.3, 2500);
 
 const hemiLight = new THREE.HemisphereLight(0xe2f1ff, 0x3d312a, 0.78);
 scene.add(hemiLight);
@@ -35,10 +37,10 @@ const gridHelper = new THREE.GridHelper(420, 28, 0x2d3848, 0x1e2631);
 gridHelper.position.y = -28;
 scene.add(gridHelper);
 
-const worldGroup = new THREE.Group();
+export const worldGroup = new THREE.Group();
 scene.add(worldGroup);
 
-const camState = {
+export const camState = {
     target: new THREE.Vector3(0, 12, 0),
     theta: -0.58,
     phi: 1.06,
@@ -49,7 +51,7 @@ const camState = {
     lastY: 0
 };
 
-function updateCamera() {
+export function updateCamera() {
     const phi = clamp(camState.phi, 0.10, Math.PI * 0.48);
     camera.position.set(
         camState.target.x + camState.radius * Math.sin(phi) * Math.sin(camState.theta),
@@ -59,12 +61,12 @@ function updateCamera() {
     camera.lookAt(camState.target);
 }
 
-let routeEditState = {
+export let routeEditState = {
     enabled: true,
     soloIsland: false,
     draggingHandle: null, // { islandIdx, role, wpIdx, lastClientY }
     selectedGizmo: null   // { islandIdx, role, wpIdx, segKey }
 };
-const routeHandleMeshes = [];
-const segmentToggleMeshes = [];
-const raycaster = new THREE.Raycaster();
+export const routeHandleMeshes = [];
+export const segmentToggleMeshes = [];
+export const raycaster = new THREE.Raycaster();

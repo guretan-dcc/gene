@@ -1,3 +1,7 @@
+import { rebuildScene } from './scene/rebuild.js';
+import { camera, renderer, scene } from './scene/scene.js';
+import { setupInspectorEvents, syncInspectorUI } from './ui/inspector.js';
+
 function onWindowResize() {
     const container = document.getElementById('viewportContainer');
     const w = Math.max(1, container.clientWidth);

@@ -1,5 +1,5 @@
 let toastTimer = null;
-function showToast(msg) {
+export function showToast(msg) {
     const box = document.getElementById('toastBox');
     if (!box) return;
     box.textContent = msg;

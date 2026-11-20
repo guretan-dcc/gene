@@ -1,4 +1,9 @@
-function renderIslandListUI() {
+import { rebuildScene } from '../scene/rebuild.js';
+import { markDirtyOrRebuild, state } from '../state.js';
+import { syncInspectorUI } from './inspector.js';
+import { clamp } from '../utils/math.js';
+
+export function renderIslandListUI() {
     const container = document.getElementById('islandListContainer');
     if (!container) return;
     container.innerHTML = '';

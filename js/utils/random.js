@@ -1,7 +1,7 @@
 // =========================================================================
 // 1. 決定論的乱数 & FBM パーリンノイズ (`FloatingTerrainBuilder.cs` 準拠)
 // =========================================================================
-class SeededRandom {
+export class SeededRandom {
     constructor(seed) {
         this.state = (seed | 0) || 123456789;
     }
@@ -21,7 +21,7 @@ class SeededRandom {
     }
 }
 
-class PerlinNoise2D {
+export class PerlinNoise2D {
     constructor(seed) {
         const r0 = new SeededRandom(seed);
         this.p = new Uint8Array(512);

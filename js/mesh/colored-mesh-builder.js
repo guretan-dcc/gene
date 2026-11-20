@@ -1,7 +1,7 @@
 // =========================================================================
 // 4. フラットシェーディング頂点カラーメッシュビルダー (`FloatingTerrainBuilder.Mb` 移植)
 // =========================================================================
-class ColoredMeshBuilder {
+export class ColoredMeshBuilder {
     constructor() {
         this.v = [];
         this.c = [];

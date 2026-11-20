@@ -1,7 +1,7 @@
 // =========================================================================
 // 2. 群島プリセット定義（自然で無理のない橋位置＆迂回ウェイポイント初期値付き）
 // =========================================================================
-function createPresetIslands(presetKey) {
+export function createPresetIslands(presetKey) {
     if (presetKey === 'spiral_peaks_4') {
         return [
             {

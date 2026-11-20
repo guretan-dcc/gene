@@ -1,3 +1,8 @@
+import { ColoredMeshBuilder } from '../mesh/colored-mesh-builder.js';
+import { state } from '../state.js';
+import { clamp, lerpColor, shadeColor, smoothstep } from '../utils/math.js';
+import { PerlinNoise2D, SeededRandom } from '../utils/random.js';
+
 // =========================================================================
 // 5. 単一浮島ジェネレーター (`FloatingTerrainBuilder.cs` 小島最適化 + 6近傍直結洞窟)
 // =========================================================================
@@ -6,7 +11,7 @@ const EvenDZ = [0, 1, 1, 0, -1, -1];
 const OddDX  = [1, 1, 0, -1, 0, 1];
 const OddDZ  = [0, 1, 1, 0, -1, -1];
 
-function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
+export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
     const ZStep = 0.8660254;
     const width = clamp(islCfg.width, 36, 120);
     const targetCell = clamp(islCfg.cellSize, 1.5, 3.5);

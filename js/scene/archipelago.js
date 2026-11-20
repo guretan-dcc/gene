@@ -1,13 +1,20 @@
+import { buildBridgePlanks } from '../generators/bridge-generator.js';
+import { buildSingleIsland } from '../generators/island-generator.js';
+import { ColoredMeshBuilder } from '../mesh/colored-mesh-builder.js';
+import { routeEditState } from './scene.js';
+import { state } from '../state.js';
+import { hexToRgb } from '../utils/math.js';
+
 // =========================================================================
 // 7. 群島全体の統合ビルド & シーン構築
 // =========================================================================
-const showFlags = {
+export const showFlags = {
     wire: false,
     water: true,
     veg: true
 };
 
-function buildArchipelagoStage() {
+export function buildArchipelagoStage() {
     const palette = {
         grass: hexToRgb(state.grassColor),
         forest: hexToRgb(state.forestGroundColor),
