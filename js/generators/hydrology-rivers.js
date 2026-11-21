@@ -919,5 +919,26 @@ export function carveRivers(c) {
     }
 
     const riverCenterOrdered = order.filter(i => centerRiver[i]);
-    return { riverCenterOrdered };
+    // 水源→合流/河口までの経路 (3Dギズモ表示用)
+    const riverPaths = [];
+    {
+        const hasUp = new Uint8Array(n), used = new Uint8Array(n);
+        for (let i = 0; i < n; i++) {
+            const d = down[i];
+            if (centerRiver[i] && d >= 0 && centerRiver[d]) hasUp[d] = 1;
+        }
+        for (let s = 0; s < n; s++) {
+            if (!centerRiver[s] || hasUp[s]) continue;
+            const path = [];
+            let cur = s;
+            while (cur >= 0 && centerRiver[cur] && path.length < n) {
+                path.push(cur);
+                if (used[cur]) break;
+                used[cur] = 1;
+                cur = down[cur];
+            }
+            if (path.length >= 2) riverPaths.push(path);
+        }
+    }
+    return { riverCenterOrdered, riverPaths };
 }

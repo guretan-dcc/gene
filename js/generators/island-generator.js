@@ -402,7 +402,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
     const centerRiver = new Uint8Array(n);
     const bankSlopeFlag = new Uint8Array(n);
     const riverW = new Float32Array(n).fill(NaN);
-    const { riverCenterOrdered } = carveRivers({
+    const { riverCenterOrdered, riverPaths } = carveRivers({
         n, resolution, cellSize, half, cliffWidth, jitter: maxJitter, perlin, islCfg, Nb, SafeBedFloor,
         inside, H, mask, mountain, xz, baseXz, lakeId, lakeLevels, lakeFrozen,
         centerRiver, river, riverW, bankSlopeFlag, snowZone, snowBuffer
@@ -2905,6 +2905,20 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
     // 崖・岩盤・氷の三角形の向きを揃える（Unityの裏面カリングで穴に見えるのを防ぐ）
     unifyWinding(terrainMb);
 
+    // 自動生成された川の経路点 (3Dハンドル表示用。ドラッグすると手動の川に変換される)
+    const autoRiverWorlds = (islCfg.autoRivers === false ? [] : (riverPaths || [])).map(path => {
+        const idxs = [];
+        for (let k = 0; k < path.length; k += 5) idxs.push(k);
+        if (idxs[idxs.length - 1] !== path.length - 1) {
+            if (path.length - 1 - idxs[idxs.length - 1] < 3 && idxs.length > 1) idxs[idxs.length - 1] = path.length - 1;
+            else idxs.push(path.length - 1);
+        }
+        return idxs.map(k => {
+            const c = path[k];
+            return { x: xz[c].x + ox, y: H[c] + oy, z: xz[c].z + oz, groundY: H[c] + oy, nx: xz[c].x / half, nz: xz[c].z / half };
+        });
+    });
+
     // 手動の川の経路点 (3Dハンドル表示用)
     const riverPointWorlds = (Array.isArray(islCfg.manualRivers) ? islCfg.manualRivers : []).map(r =>
         (Array.isArray(r.points) ? r.points : []).map(p => {
@@ -2942,6 +2956,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
         exitGroundY: exitResolved.groundWorldY,
         waypointWorldPositions: waypointResolved.map(r => r.worldPos),
         riverPointWorlds,
+        autoRiverWorlds,
         waypointGroundYs: waypointResolved.map(r => r.groundWorldY),
         waypointRoles,
         branchPointRoles,

@@ -54,6 +54,20 @@ export function tryBeginDragRouteHandle(e) {
 
     const ud = hits[0].object.userData;
     state.selectedIslandIdx = ud.islandIdx;
+    if (ud.role === 'autoRiverPoint') {
+        // 自動の川の点をつかんだら、その島の自動の川をすべて手動の川に変換して編集可能にする
+        const cfg = state.islands[ud.islandIdx];
+        const isl0 = builtArchipelago.builtIslands[ud.islandIdx];
+        cfg.manualRivers = (isl0.autoRiverWorlds || []).map(pts => ({
+            points: pts.map(p => ({ x: Number(clamp(p.nx, -0.96, 0.96).toFixed(3)), z: Number(clamp(p.nz, -0.96, 0.96).toFixed(3)) }))
+        }));
+        cfg.autoRivers = false;
+        routeHandleMeshes.forEach(m => {
+            if (m.userData.role === 'autoRiverPoint' && m.userData.islandIdx === ud.islandIdx) m.userData.role = 'riverPoint';
+        });
+        ud.role = 'riverPoint';
+        showToast('自動の川を手動の川に変換しました（以後は点をドラッグ・追加・削除できます）');
+    }
     routeEditState.draggingHandle = {
         islandIdx: ud.islandIdx,
         role: ud.role,

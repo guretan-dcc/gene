@@ -108,6 +108,17 @@ export function createGizmoGroup(arch) {
         }
 
         // 手動河川: 経路ポリラインと点ハンドル (水源=明るい水色 / 河口=濃い青)
+        if (riverMode && isl.autoRiverWorlds) {
+            isl.autoRiverWorlds.forEach((pts, rIdx) => {
+                g.add(new THREE.Line(
+                    new THREE.BufferGeometry().setFromPoints(pts.map(p => new THREE.Vector3(p.x, p.y + 1.0, p.z))),
+                    new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.55 })
+                ));
+                pts.forEach((p, pIdx) => {
+                    addHandleSphere({ x: p.x, y: p.y, z: p.z }, 0x38bdf8, 'autoRiverPoint', `${rIdx}_${pIdx}`, 1.3, p.groundY);
+                });
+            });
+        }
         if (riverMode && isl.riverPointWorlds) {
             isl.riverPointWorlds.forEach((pts, rIdx) => {
                 if (pts.length >= 2) {
