@@ -53,64 +53,109 @@ export function exportUnityPrefab() {
     ].filter(([, vis]) => parts[vis].v.length > 0);
 
     const ROOT_GO = 1000, ROOT_TR = 1001;
-    const docs = [];
-    docs.push(`--- !u!1 &${ROOT_GO}
+    // StaticEditorFlags: ContributeGI=1, OccluderStatic=2, BatchingStatic=4, OccludeeStatic=16
+    // Unityエディターの FloatingTerrainPrefabCreator と同じ設定にする（橋は isStatic=true 相当で全フラグ）
+    const STATIC_FLAGS = { Terrain: 23, Water: 20, Trees: 21, Grass: 20, Bridges: 4294967295 };
+    const ROOT_STATIC = 23;
+    const COMMON = `  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}`;
+    const gameObject = (id, name, comps, flags) => `--- !u!1 &${id}
 GameObject:
-  m_ObjectHideFlags: 0
-  m_Name: ${state.stageName}
-  m_Component:
-  - component: {fileID: ${ROOT_TR}}
-  m_IsActive: 1
---- !u!4 &${ROOT_TR}
-Transform:
-  m_GameObject: {fileID: ${ROOT_GO}}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_Children:
-${objects.map(o => `  - {fileID: ${o[4] + 1}}`).join('\n')}
-  m_Father: {fileID: 0}`);
-
-    const usedMeshes = new Set();
-    for (const [name, vis, col, shadow, base] of objects) {
-        const go = base, tr = base + 1, mf = base + 2, mr = base + 3, mc = base + 4;
-        const comps = [tr, mf, mr].concat(col && parts[col].v.length > 0 ? [mc] : []);
-        docs.push(`--- !u!1 &${go}
-GameObject:
-  m_ObjectHideFlags: 0
-  m_Name: ${name}
+${COMMON}
+  serializedVersion: 6
   m_Component:
 ${comps.map(c => `  - component: {fileID: ${c}}`).join('\n')}
-  m_IsActive: 1
---- !u!4 &${tr}
+  m_Layer: 0
+  m_Name: ${name}
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: ${flags}
+  m_IsActive: 1`;
+    const transform = (id, go, father, children, order) => `--- !u!4 &${id}
 Transform:
+${COMMON}
   m_GameObject: {fileID: ${go}}
+  serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
-  m_Children: []
-  m_Father: {fileID: ${ROOT_TR}}
---- !u!33 &${mf}
+  m_ConstrainProportionsScale: 0
+  m_Children:${children.length ? '\n' + children.map(c => `  - {fileID: ${c}}`).join('\n') : ' []'}
+  m_Father: {fileID: ${father}}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}`;
+
+    const docs = [];
+    docs.push(gameObject(ROOT_GO, state.stageName, [ROOT_TR], ROOT_STATIC));
+    docs.push(transform(ROOT_TR, ROOT_GO, 0, objects.map(o => o[4] + 1), 0));
+
+    const usedMeshes = new Set();
+    objects.forEach(([name, vis, col, shadow, base], order) => {
+        const go = base, tr = base + 1, mf = base + 2, mr = base + 3, mc = base + 4;
+        const hasCol = col && parts[col].v.length > 0;
+        const comps = [tr, mf, mr].concat(hasCol ? [mc] : []);
+        docs.push(gameObject(go, name, comps, STATIC_FLAGS[name]));
+        docs.push(transform(tr, go, ROOT_TR, [], order));
+        docs.push(`--- !u!33 &${mf}
 MeshFilter:
+${COMMON}
   m_GameObject: {fileID: ${go}}
-  m_Mesh: {fileID: ${MESH_ID[vis]}}
---- !u!23 &${mr}
+  m_Mesh: {fileID: ${MESH_ID[vis]}}`);
+        docs.push(`--- !u!23 &${mr}
 MeshRenderer:
+${COMMON}
   m_GameObject: {fileID: ${go}}
   m_Enabled: 1
   m_CastShadows: ${shadow}
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: ${name === 'Water' ? WATER_MATERIAL_GUID : SHARED_MATERIAL_GUID}, type: 2}`);
+  - {fileID: 2100000, guid: ${name === 'Water' ? WATER_MATERIAL_GUID : SHARED_MATERIAL_GUID}, type: 2}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0`);
         usedMeshes.add(vis);
-        if (col && parts[col].v.length > 0) {
+        if (hasCol) {
             docs.push(`--- !u!64 &${mc}
 MeshCollider:
+${COMMON}
   m_GameObject: {fileID: ${go}}
+  m_Material: {fileID: 0}
+  m_IsTrigger: 0
   m_Enabled: 1
+  serializedVersion: 4
+  m_Convex: 0
+  m_CookingOptions: 30
   m_Mesh: {fileID: ${MESH_ID[col]}}`);
             usedMeshes.add(col);
         }
-    }
+    });
 
     const meshNames = {
         terrain: 'TerrainMesh', water: 'WaterMesh', trees: 'TreesMesh', treesCol: 'TreesColliderMesh',
