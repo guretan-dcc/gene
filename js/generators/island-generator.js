@@ -1,4 +1,4 @@
-import { ColoredMeshBuilder } from '../mesh/colored-mesh-builder.js';
+import { ColoredMeshBuilder, unifyWinding } from '../mesh/colored-mesh-builder.js';
 import { state } from '../state.js';
 import { clamp, lerpColor, shadeColor, smoothstep } from '../utils/math.js';
 import { PerlinNoise2D, SeededRandom } from '../utils/random.js';
@@ -3093,6 +3093,9 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
     };
     const treesMb = sliceMb(0, treeVertEnd);
     const grassMb = sliceMb(treeVertEnd, vegMb.v.length);
+
+    // 崖・岩盤・氷の三角形の向きを揃える（Unityの裏面カリングで穴に見えるのを防ぐ）
+    unifyWinding(terrainMb);
 
     return {
         name: islCfg.name,
