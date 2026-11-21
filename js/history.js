@@ -5,6 +5,7 @@ import { routeEditState } from './scene/scene.js';
 import { markDirtyOrRebuild, setState, state } from './state.js';
 import { syncInspectorUI } from './ui/inspector.js';
 import { showToast } from './ui/toast.js';
+import { saveLastState } from './persist.js';
 
 const LIMIT = 100;
 const DEBOUNCE_MS = 400;
@@ -37,6 +38,7 @@ export function commitSnapshot() {
     if (stack.length > LIMIT) stack.shift();
     index = stack.length - 1;
     current = s;
+    saveLastState(s);
     updateButtons();
 }
 

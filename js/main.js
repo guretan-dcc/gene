@@ -1,4 +1,5 @@
 import { initHistory } from './history.js';
+import { restoreLastState, saveCurrentState } from './persist.js';
 import { rebuildScene } from './scene/rebuild.js';
 import { camera, renderer, scene } from './scene/scene.js';
 // カメラ操作（pointer/wheel イベント）を canvas に登録する副作用インポート。
@@ -19,6 +20,8 @@ function onWindowResize() {
 window.addEventListener('resize', onWindowResize);
 
 window.onload = function () {
+    restoreLastState();
+    window.addEventListener('pagehide', saveCurrentState);
     setupTabs();
     setupNumberScrub();
     setupInspectorEvents();

@@ -2399,6 +2399,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
 
             // 崖肌への追従: 滝口の下の崖面を水平レイで探し、水の筋を崖に沿わせる(空中に浮いた薄い帯にしない)
             const HUG_GAP = 0.22;
+            const MAX_TUCK = cellSize * 1.4; // 崖が大きく引っ込む所(島の下側の円錐部)では水は無理に追わず、自由落下させる
             const tv = terrainMb.v, triN = tv.length / 9;
             const farFwd = jetReach + cellSize * 8;
             const hugTarget = (lat, y) => {
@@ -2468,7 +2469,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                         let fwdH = fwdJ;
                         if (yJ < avgLipY - 0.3) {
                             const tgt = hugTarget(latJ, yJ);
-                            if (tgt !== null) fwdH = lerpNum(fwdJ, tgt, smoothstep(0.12, 0.55, tau));
+                            if (tgt !== null) fwdH = lerpNum(fwdJ, clamp(tgt, fwdJ - MAX_TUCK, fwdJ), smoothstep(0.12, 0.55, tau));
                         }
                         lastHug[j] = fwdH;
                         row.push({
@@ -2489,7 +2490,9 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                     for (let j = 0; j <= cols; j++) {
                         const latE = lat0[j] * endWidthRatio;
                         const tgt = hugTarget(latE, yExt);
-                        const fwdE = tgt !== null ? tgt : (lastHug[j] !== null ? lastHug[j] : fwdCurve[curveSteps]);
+                        const uN = 2 * uArc[j] - 1;
+                        const freeEnd = jetReach + cellSize * 0.14 * (1 - uN * uN);
+                        const fwdE = tgt !== null ? clamp(tgt, freeEnd - MAX_TUCK, freeEnd) : freeEnd;
                         lastHug[j] = fwdE;
                         row.push({
                             x: midX + outDir.x * fwdE + sideAxis.x * latE,
