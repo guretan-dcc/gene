@@ -117,7 +117,7 @@ MeshCollider:
         grass: 'GrassMesh', bridges: 'BridgeMesh', bridgesCol: 'BridgeCollider'
     };
     for (const key of usedMeshes) {
-        docs.push(serializeMeshToUnityYaml(MESH_ID[key], `${state.stageName}_${meshNames[key]}`, parts[key]).replace(/\n$/, ''));
+        docs.push(serializeMeshToUnityYaml(MESH_ID[key], `${state.stageName}_${meshNames[key]}`, parts[key], key === 'water').replace(/\n$/, ''));
     }
 
     const yaml = `%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n${docs.join('\n')}\n`;

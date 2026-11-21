@@ -1,7 +1,10 @@
 Shader "MyWorld/Low Poly Water" {
     Properties {
-        _Opacity ("Opacity", Range(0, 1)) = 0.95
+        _Color ("Tint", Color) = (1, 1, 1, 1)
+        _Opacity ("Opacity", Range(0, 1)) = 0.88
         _Brightness ("Brightness", Range(0.5, 1.5)) = 1.0
+        _Shininess ("Specular Power", Range(0.03, 1)) = 0.35
+        _SpecIntensity ("Specular Intensity", Range(0, 1)) = 0.35
     }
     SubShader {
         Tags { "RenderType"="Transparent" "Queue"="Transparent" "IgnoreProjector"="True" }
@@ -14,24 +17,23 @@ Shader "MyWorld/Low Poly Water" {
         }
 
         CGPROGRAM
-        #pragma surface surf Lambert vertex:vert alpha:fade noshadow noforwardadd exclude_path:deferred
+        #pragma surface surf BlinnPhong alpha:fade noshadow noforwardadd exclude_path:deferred
         #pragma target 3.0
 
+        fixed4 _Color;
         float _Opacity;
         float _Brightness;
+        float _Shininess;
+        float _SpecIntensity;
 
         struct Input { float4 color : COLOR; };
 
-        void vert(inout appdata_full v) {
-            // MeshにはsRGBのColor32を保存。補間前に作業色空間へ変換する（LowPolyVertexColorと同じ）。
-            #ifndef UNITY_COLORSPACE_GAMMA
-            v.color.rgb = GammaToLinearSpace(v.color.rgb);
-            #endif
-        }
-
         void surf(Input input, inout SurfaceOutput output) {
-            output.Albedo = input.color.rgb * _Brightness;
-            output.Alpha = input.color.a * _Opacity;
+            // WaterMeshはBuildWaterMesh(MeshBuilder(false))で既にLinear済みの頂点色を保持するため再変換しない
+            output.Albedo = input.color.rgb * _Color.rgb * _Brightness;
+            output.Alpha = input.color.a * _Color.a * _Opacity;
+            output.Specular = _Shininess;
+            output.Gloss = _SpecIntensity;
         }
         ENDCG
     }

@@ -16,7 +16,12 @@ function uint32ToHexLE(val) {
     return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-export function serializeMeshToUnityYaml(fileId, meshName, mb) {
+// linearFloatColor: true のとき、頂点カラーをリニアfloat(RGBA 16byte)で書き出す（Unityエディターの水メッシュと同じ。
+// LowPolyWater.shader は頂点色を変換せずそのまま使う）。false は従来どおり sRGB の Color32。
+const srgbToLinear = c => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+
+export function serializeMeshToUnityYaml(fileId, meshName, mb, linearFloatColor = false) {
+    const stride = linearFloatColor ? 40 : 28;
     const geo = mb.toThreeGeometry();
     const pos = geo.getAttribute('position');
     const nrm = geo.getAttribute('normal');
@@ -41,7 +46,12 @@ export function serializeMeshToUnityYaml(fileId, meshName, mb) {
 
         vHex += floatToHexLE(x) + floatToHexLE(y) + floatToHexLE(z);
         vHex += floatToHexLE(nx) + floatToHexLE(ny) + floatToHexLE(nz);
-        vHex += r.toString(16).padStart(2, '0') + g.toString(16).padStart(2, '0') + b.toString(16).padStart(2, '0') + a.toString(16).padStart(2, '0');
+        if (linearFloatColor) {
+            vHex += floatToHexLE(srgbToLinear(clamp(col.getX(i), 0, 1))) + floatToHexLE(srgbToLinear(clamp(col.getY(i), 0, 1)))
+                + floatToHexLE(srgbToLinear(clamp(col.getZ(i), 0, 1))) + floatToHexLE(a / 255);
+        } else {
+            vHex += r.toString(16).padStart(2, '0') + g.toString(16).padStart(2, '0') + b.toString(16).padStart(2, '0') + a.toString(16).padStart(2, '0');
+        }
         iHex += uint32ToHexLE(i);
     }
     geo.dispose();
@@ -85,7 +95,7 @@ Mesh:
       dimension: 0
     - stream: 0
       offset: 24
-      format: 2
+      format: ${linearFloatColor ? 0 : 2}
       dimension: 4
     - stream: 0
       offset: 0
@@ -127,7 +137,7 @@ Mesh:
       offset: 0
       format: 0
       dimension: 0
-    m_DataSize: ${vCount * 28}
+    m_DataSize: ${vCount * stride}
     _typelessdata: ${vHex}
   m_LocalAABB:
     m_Center: {x: ${cx}, y: ${cy}, z: ${cz}}
