@@ -32,7 +32,6 @@ export function syncInspectorUI() {
         const isl = state.islands[state.selectedIslandIdx];
         document.getElementById('chkAutoRivers').checked = isl.autoRivers !== false;
         document.getElementById('chkLakeOutletRiver').checked = isl.lakeOutletRiver === true;
-        document.getElementById('btnRiverDraw').classList.toggle('active', !!routeEditState.riverDraw);
     }
     const isl = state.islands[state.selectedIslandIdx] || state.islands[0];
     document.getElementById('selectedIslandTitle').textContent = `2. 島の配置・サイズ (${isl.name})`;
@@ -189,19 +188,9 @@ export function setupInspectorEvents() {
     });
     document.getElementById('btnAddManualRiver').addEventListener('click', () => {
         addManualRiver(state.islands[state.selectedIslandIdx]);
-        markDirtyOrRebuild();
+        markDirtyOrRebuild(true);
         syncInspectorUI();
     });
-    document.getElementById('btnRiverDraw').addEventListener('click', e => {
-        routeEditState.riverDraw = !routeEditState.riverDraw;
-        e.currentTarget.classList.toggle('active', routeEditState.riverDraw);
-        if (routeEditState.riverDraw) {
-            const rv = ensureManualRivers(state.islands[state.selectedIslandIdx]);
-            if (rv.length === 0) { rv.push({ points: [] }); routeEditState.activeRiver = 0; syncInspectorUI(); }
-            showToast('3D上をダブルクリックで川の点を追加（水源→河口の順）');
-        }
-    });
-
     document.getElementById('btnAddBranch').addEventListener('click', () => {
         const isl = state.islands[state.selectedIslandIdx];
         if (!Array.isArray(isl.branches)) isl.branches = [];

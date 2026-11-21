@@ -25,7 +25,7 @@ export function renderRiverListUI(syncAll) {
         b.addEventListener('click', onClick);
         return b;
     };
-    const changed = () => { markDirtyOrRebuild(); syncAll(); };
+    const changed = () => { markDirtyOrRebuild(true); syncAll(); };
 
     rivers.forEach((r, ri) => {
         if (!Array.isArray(r.points)) r.points = [];

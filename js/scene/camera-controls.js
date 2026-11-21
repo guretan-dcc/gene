@@ -62,7 +62,7 @@ canvas.addEventListener('pointerup', e => {
     if (routeEditState.draggingHandle) {
         const finished = routeEditState.draggingHandle;
         routeEditState.draggingHandle = null;
-        if (finished.role === 'riverPoint' && finished.moved) markDirtyOrRebuild();
+        if (finished.role === 'riverPoint' && finished.moved) markDirtyOrRebuild(true);
         selectAndHighlightGizmo({
             islandIdx: finished.islandIdx,
             role: finished.role,

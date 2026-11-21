@@ -84,6 +84,7 @@
             <button class="u-tab" data-tab="island">島</button>
             <button class="u-tab" data-tab="route">道・橋</button>
             <button class="u-tab" data-tab="terrain">地形・水</button>
+            <button class="u-tab" data-tab="river">川</button>
             <button class="u-tab" data-tab="veg">植生・色</button>
         </div>
 
@@ -325,7 +326,12 @@
                     <div class="u-control"><input type="range" class="u-slider"><input type="number" class="u-num"></div>
                 </div>
 
-                <div class="u-sub-header">川の流れの設計</div>
+            </div>
+
+            </div>
+
+            <div data-tab-pane="river">
+                <div class="px-2 pt-2 text-[11px] text-cyan-300">このタブを開いている間、3D画面では川の点（水色の球）だけを操作できます。球をドラッグで移動、地形をダブルクリックで点を追加（水源→河口の順）。</div>
                 <div class="flex flex-col gap-1 px-1 pb-1 text-[11px]">
                     <label class="flex items-center gap-1.5 cursor-pointer text-[#e4e4e7]">
                         <input type="checkbox" id="chkAutoRivers" class="accent-[#3b82f6]" checked>
@@ -338,12 +344,9 @@
                     <div class="text-[#a1a1aa]">手動の川: 水源→河口の点を順に置くと、その道筋に川を刻みます (終点は島の端か湖まで自動で延長)。</div>
                     <div class="flex gap-1 flex-wrap">
                         <button id="btnAddManualRiver" class="u-btn">＋ 川を追加</button>
-                        <button id="btnRiverDraw" class="u-btn">3Dで点を置く(ダブルクリック)</button>
                     </div>
                     <div id="riverListContainer" class="flex flex-col gap-1"></div>
                 </div>
-            </div>
-
             </div>
 
             <div data-tab-pane="veg">

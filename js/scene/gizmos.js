@@ -33,6 +33,7 @@ export function createGizmoGroup(arch) {
     }
 
     // 各島のドラッグ可能なルート＆橋アンカー球と、区間ごとの切断/接続ダイヤモンドマーカー
+    const riverMode = routeEditState.activeTab === 'river';
     arch.builtIslands.forEach((isl, islIdx) => {
         if (routeEditState.soloIsland && islIdx !== state.selectedIslandIdx) return;
 
@@ -71,7 +72,7 @@ export function createGizmoGroup(arch) {
             ));
         }
 
-        addHandleSphere(isl.entryShorePos, 0x22c55e, 'entry', -1, 1.25, isl.entryGroundY);
+        if (!riverMode) addHandleSphere(isl.entryShorePos, 0x22c55e, 'entry', -1, 1.25, isl.entryGroundY);
 
         function roleToColor(role, fallbackHex) {
             if (role === 'bridgeStart') return 0x38bdf8;
@@ -81,17 +82,17 @@ export function createGizmoGroup(arch) {
             return fallbackHex;
         }
 
-        isl.waypointWorldPositions.forEach((wpPos, wIdx) => {
+        if (!riverMode) isl.waypointWorldPositions.forEach((wpPos, wIdx) => {
             const roleTag = (isl.waypointRoles && isl.waypointRoles[wIdx]) || 'waypoint';
             const col = roleToColor(roleTag, 0xfacc15);
             const rad = (roleTag !== 'waypoint') ? 1.18 : 1.05;
             const gY = isl.waypointGroundYs ? isl.waypointGroundYs[wIdx] : null;
             addHandleSphere(wpPos, col, 'waypoint', wIdx, rad, gY);
         });
-        addHandleSphere(isl.exitShorePos, 0xa855f7, 'exit', -1, 1.25, isl.exitGroundY);
+        if (!riverMode) addHandleSphere(isl.exitShorePos, 0xa855f7, 'exit', -1, 1.25, isl.exitGroundY);
 
         // 分岐道 (`resolvedBranches`) の各経由点・終点・自由起点ハンドル
-        if (isl.resolvedBranches) {
+        if (!riverMode && isl.resolvedBranches) {
             isl.resolvedBranches.forEach((br, bIdx) => {
                 if (br.hasCustomStart) {
                     addHandleSphere(br.startWorld, 0xf472b6, 'branchStart', br.bIdx, 0.98, br.startGroundY);
@@ -107,7 +108,7 @@ export function createGizmoGroup(arch) {
         }
 
         // 手動河川: 経路ポリラインと点ハンドル (水源=明るい水色 / 河口=濃い青)
-        if (isl.riverPointWorlds) {
+        if (riverMode && isl.riverPointWorlds) {
             isl.riverPointWorlds.forEach((pts, rIdx) => {
                 if (pts.length >= 2) {
                     g.add(new THREE.Line(
@@ -117,13 +118,13 @@ export function createGizmoGroup(arch) {
                 }
                 pts.forEach((p, pIdx) => {
                     const col = pIdx === 0 ? 0x67e8f9 : (pIdx === pts.length - 1 ? 0x2563eb : 0x06b6d4);
-                    addHandleSphere({ x: p.x, y: p.y, z: p.z }, col, 'riverPoint', `${rIdx}_${pIdx}`, 1.0, p.groundY);
+                    addHandleSphere({ x: p.x, y: p.y, z: p.z }, col, 'riverPoint', `${rIdx}_${pIdx}`, 1.5, p.groundY);
                 });
             });
         }
 
         // 区間（セグメント）単位のラインと、クリックで区間選択・種別切替できるダイヤモンドマーカー
-        if (isl.segmentVisuals) {
+        if (!riverMode && isl.segmentVisuals) {
             isl.segmentVisuals.forEach(sv => {
                 const sel = routeEditState.selectedGizmo;
                 const isSelSeg = Boolean(sel && sel.islandIdx === islIdx && sel.role === 'segment' && sel.segKey === sv.segKey);

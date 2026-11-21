@@ -64,7 +64,8 @@ export function updateCamera() {
 export let routeEditState = {
     enabled: true,
     soloIsland: false,
-    riverDraw: false,     // ダブルクリックで川の点を置くモード
+    activeTab: 'island',
+    riverDraw: false,     // 川タブ表示中: ダブルクリックで川の点を置く
     activeRiver: 0,
     draggingHandle: null, // { islandIdx, role, wpIdx, lastClientY }
     selectedGizmo: null   // { islandIdx, role, wpIdx, segKey }

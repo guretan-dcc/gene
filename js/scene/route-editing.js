@@ -176,7 +176,7 @@ export function handleAddWaypointOnDoubleClick(e) {
             z: Number(clamp((p2.z - isl2.oz) / isl2.half, -0.96, 0.96).toFixed(3))
         });
         syncInspectorUI();
-        markDirtyOrRebuild();
+        markDirtyOrRebuild(true);
         showToast(`川 #${ai + 1} に点を追加しました`);
         return;
     }

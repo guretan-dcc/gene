@@ -1,3 +1,6 @@
+import { routeEditState } from '../scene/scene.js';
+import { refreshGizmos } from '../scene/rebuild.js';
+
 const DEFAULT_TAB = 'island';
 const STORAGE_KEY = 'gene.activeTab';
 
@@ -10,6 +13,10 @@ export function activateTab(name) {
     panes.forEach(p => p.classList.toggle('hidden', p.dataset.tabPane !== name));
     const scroller = document.getElementById('inspectorScroll');
     if (scroller) scroller.scrollTop = 0;
+    const prev = routeEditState.activeTab;
+    routeEditState.activeTab = name;
+    routeEditState.riverDraw = (name === 'river');
+    if ((prev === 'river') !== (name === 'river')) refreshGizmos();
     try { localStorage.setItem(STORAGE_KEY, name); } catch (_) { /* 保存できなくても動作に影響なし */ }
 }
 

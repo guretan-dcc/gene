@@ -89,3 +89,15 @@ export function rebuildScene() {
 
     updateCamera();
 }
+
+// 地形は作り直さず、操作用ギズモ(球・線)だけ作り直す (タブ切替時など)
+export function refreshGizmos() {
+    if (!builtArchipelago) return;
+    for (const ch of [...worldGroup.children]) {
+        if (ch.userData && ch.userData.tag === 'route') worldGroup.remove(ch);
+    }
+    const gizmo = createGizmoGroup(builtArchipelago);
+    gizmo.visible = routeEditState.enabled;
+    gizmo.userData = { tag: 'route' };
+    worldGroup.add(gizmo);
+}
