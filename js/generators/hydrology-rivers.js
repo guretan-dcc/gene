@@ -78,14 +78,21 @@ export function carveRivers(c) {
     const setXz = (i, x, z) => { xz[i] = { x, y: z, z }; };
     const dist2 = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 
-    const riverThreshold = computeRiverThreshold(islCfg.riverAmount !== undefined ? islCfg.riverAmount : 1.0);
+    const manualList = (Array.isArray(islCfg.manualRivers) ? islCfg.manualRivers : [])
+        .filter(r => r && Array.isArray(r.points) && r.points.length >= 2);
+    const riverAmountCfg = islCfg.riverAmount !== undefined ? islCfg.riverAmount : 1.0;
+    // 自動河川: 川の多さ>0 かつ autoRivers !== false
+    const autoRivers = riverAmountCfg > 0.005 && islCfg.autoRivers !== false;
+    // 湖の流出口から川を流すか (既定OFF)
+    const lakeOutletEnabled = islCfg.lakeOutletRiver === true;
+    const riverThreshold = computeRiverThreshold(riverAmountCfg > 0.005 ? riverAmountCfg : 1.0);
     const riverWidth = islCfg.riverWidth;
     const riverBankDepth = islCfg.riverBankDepth;
     const riverDepth = islCfg.riverDepth;
     const plainsRiverDepth = islCfg.plainsRiverDepth !== undefined ? islCfg.plainsRiverDepth : riverDepth * 0.7;
     const riverAreaScale = Math.max(0.25, (resolution / 160) * (resolution / 160));
 
-    if (riverThreshold >= DISABLED_RIVER_THRESHOLD / 2) return { riverCenterOrdered: [] };
+    if (riverThreshold >= DISABLED_RIVER_THRESHOLD / 2 && manualList.length === 0) return { riverCenterOrdered: [] };
 
     // ---------------- 流路探索用の高さ flowH / Priority-Flood flowF ----------------
     const flowH = new Float32Array(n);
@@ -181,6 +188,69 @@ export function carveRivers(c) {
     }
     buildTopologicalOrder();
     computeAccumulation();
+
+    // ---------------- 手動で設計した川 (manualRivers) ----------------
+    const manual = new Uint8Array(n);
+    const manualPaths = [];
+    {
+        const nearestCell = (nx, nz) => {
+            const tx = nx * half, tz = nz * half;
+            let best = -1, bd = Infinity;
+            for (let i = 0; i < n; i++) {
+                if (!inside[i]) continue;
+                const d = (baseXz[i].x - tx) ** 2 + (baseXz[i].z - tz) ** 2;
+                if (d < bd) { bd = d; best = i; }
+            }
+            return best;
+        };
+        const walk = (a, b, path, seen) => {
+            let cur = a;
+            for (let guard = 0; guard < n && cur !== b; guard++) {
+                let bestN = -1, bestD = Infinity;
+                for (let k = 0; k < 6; k++) {
+                    const nb = Nb(cur, k);
+                    if (nb < 0 || !inside[nb] || seen.has(nb)) continue;
+                    const d = Math.hypot(baseXz[nb].x - baseXz[b].x, baseXz[nb].z - baseXz[b].z);
+                    if (d < bestD) { bestD = d; bestN = nb; }
+                }
+                if (bestN < 0) break;
+                path.push(bestN); seen.add(bestN); cur = bestN;
+            }
+        };
+        for (const mr of manualList) {
+            const cells = [];
+            for (const p of mr.points) {
+                const c0 = nearestCell(p.x, p.z);
+                if (c0 >= 0 && cells[cells.length - 1] !== c0) cells.push(c0);
+            }
+            if (cells.length < 2) continue;
+            const path = [cells[0]];
+            const seen = new Set(path);
+            for (let k = 1; k < cells.length; k++) walk(path[path.length - 1], cells[k], path, seen);
+            // 終点から既存の流下方向をたどって島の端か湖まで流す
+            let cur = path[path.length - 1];
+            for (let guard = 0; guard < n; guard++) {
+                const d = down[cur];
+                if (d < 0 || !inside[d]) break;
+                if (seen.has(d)) { down[cur] = -1; break; }
+                path.push(d); seen.add(d); cur = d;
+                if (lakeId[d] > 0) break;
+            }
+            if (path.length >= 2) manualPaths.push(path);
+        }
+        for (const path of manualPaths) for (const c of path) if (lakeId[c] <= 0) manual[c] = 1;
+    }
+    function applyManual() {
+        for (const path of manualPaths) {
+            for (let k = 0; k + 1 < path.length; k++) down[path[k]] = path[k + 1];
+            for (const c of path) if (lakeId[c] <= 0 && inside[c]) centerRiver[c] = 1;
+        }
+    }
+    if (manualPaths.length > 0) {
+        applyManual();
+        buildTopologicalOrder();
+        computeAccumulation();
+    }
 
     const areNeighbors = (a, b) => { for (let k = 0; k < 6; k++) if (Nb(a, k) === b) return true; return false; };
     const mountainSpringThreshold = () => (riverThreshold >= 500000 ? Infinity
@@ -278,6 +348,7 @@ export function carveRivers(c) {
     function refreshCenterRivers() {
         centerRiver.fill(0);
         const { lakeCellCnt, lakeBestOutlet } = computeLakeOutlets();
+        if (!lakeOutletEnabled) lakeBestOutlet.fill(-1);
         const lakeCount = lakeLevels.length;
         const lakeDrains = new Uint8Array(lakeCount);
         const lakeQueue = [];
@@ -285,12 +356,12 @@ export function carveRivers(c) {
         const minLakeRiverCells = Math.max(3, Math.round((1.5 + riverThreshold * 0.085) * riverAreaScale));
 
         // 1. 山地・雪解け域から湧出する明確な山岳河川だけをトレース
-        for (let i = 0; i < n; i++) {
+        for (let i = 0; autoRivers && i < n; i++) {
             if (!inside[i] || snowBuffer[i] || lakeId[i] > 0) continue;
             if (mountain[i] >= 0.12 && mtAcc[i] >= spring) traceRiverDownstream(i, lakeBestOutlet, lakeDrains, lakeQueue);
         }
         // 2. 一定規模以上の不凍湖(および川が流入して溢れる湖)の流出口から川を流す
-        for (let id = 1; id < lakeCount; id++) {
+        for (let id = 1; autoRivers && id < lakeCount; id++) {
             if (!isLakeFrozen(id) && lakeBestOutlet[id] >= 0 && lakeCellCnt[id] >= minLakeRiverCells && !lakeDrains[id]) {
                 lakeDrains[id] = 1;
                 lakeQueue.push(id);
@@ -302,6 +373,7 @@ export function carveRivers(c) {
             if (outlet >= 0 && !snowBuffer[outlet]) traceRiverDownstream(outlet, lakeBestOutlet, lakeDrains, lakeQueue);
         }
         pruneSourcelessRivers(lakeDrains);
+        applyManual();
         return { lakeDrains, lakeCellCnt };
     }
 
@@ -348,7 +420,7 @@ export function carveRivers(c) {
         let mergedAny = false;
 
         for (const u of order) {
-            if (!centerRiver[u]) continue;
+            if (!centerRiver[u] || manual[u]) continue;
             const oldD = down[u];
             if (oldD < 0 || !inside[oldD]) continue;
             stamp++;
@@ -512,7 +584,8 @@ export function carveRivers(c) {
     // ---------------- 流量 ----------------
     function buildRiverDischarge(lakeCellCnt) {
         const discharge = new Int32Array(n);
-        for (let i = 0; i < n; i++) if (centerRiver[i]) discharge[i] = Math.max(acc[i], mtAcc[i]);
+        const manualFloor = Math.ceil(Math.max(1, riverThreshold * riverAreaScale) * 2.5);
+        for (let i = 0; i < n; i++) if (centerRiver[i]) discharge[i] = Math.max(acc[i], mtAcc[i], manual[i] ? manualFloor : 0);
         for (let i = 0; i < n; i++) {
             if (!inside[i] || lakeId[i] <= 0 || isLakeFrozen(lakeId[i])) continue;
             const d = down[i];
@@ -535,6 +608,7 @@ export function carveRivers(c) {
     res = refreshCenterRivers();
     cleanRiverTopology(res.lakeDrains);
     pruneSourcelessRivers(res.lakeDrains);
+    applyManual();
     relaxRiverAndBankPositions();
     const riverDischarge = buildRiverDischarge(res.lakeCellCnt);
     carveWideRiversAndLevees(riverDischarge);

@@ -106,6 +106,22 @@ export function createGizmoGroup(arch) {
             });
         }
 
+        // 手動河川: 経路ポリラインと点ハンドル (水源=明るい水色 / 河口=濃い青)
+        if (isl.riverPointWorlds) {
+            isl.riverPointWorlds.forEach((pts, rIdx) => {
+                if (pts.length >= 2) {
+                    g.add(new THREE.Line(
+                        new THREE.BufferGeometry().setFromPoints(pts.map(p => new THREE.Vector3(p.x, p.y + 1.0, p.z))),
+                        new THREE.LineBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.8 })
+                    ));
+                }
+                pts.forEach((p, pIdx) => {
+                    const col = pIdx === 0 ? 0x67e8f9 : (pIdx === pts.length - 1 ? 0x2563eb : 0x06b6d4);
+                    addHandleSphere({ x: p.x, y: p.y, z: p.z }, col, 'riverPoint', `${rIdx}_${pIdx}`, 1.0, p.groundY);
+                });
+            });
+        }
+
         // 区間（セグメント）単位のラインと、クリックで区間選択・種別切替できるダイヤモンドマーカー
         if (isl.segmentVisuals) {
             isl.segmentVisuals.forEach(sv => {

@@ -22,6 +22,7 @@ js/
   mesh/colored-mesh-builder.js  頂点カラーメッシュビルダー
   generators/island-generator.js  単一浮島生成（地形・湖・洞窟・滝・植生）
   generators/hydrology-rivers.js  河川ネットワーク生成と河道の彫り込み（Unity版 BuildHydrology の移植）
+  ui/river-list.js                手動の川(経路点)の一覧UI
   generators/bridge-generator.js  橋メッシュ生成
   export/unity-yaml.js        Unity YAML シリアライズ
   export/exporters.js         Prefab / JSON / PLY 出力
@@ -69,3 +70,14 @@ Unity版 `FloatingTerrainPrefabCreator` と同じく、役割ごとにオブジ�
 2. 書き出した `.prefab` を取り込む。Terrain / Trees / Grass / Bridges は既存の `LowPolyVertexColor.mat`、Water は `LowPolyWater.mat` を GUID で参照します。
 
 `LowPolyWater` シェーダーは Built-in RP の半透明シェーダーで、頂点カラーを色に使い、`Tint`・`Opacity`（既定 0.88）・`Brightness`・スペキュラを調整できます。水メッシュの頂点色はUnityエディターと同じくリニアfloatで書き出すため、シェーダー側では色変換をしません。先に深度だけを書き込むパスを持つため、滝の前面・背面が二重に透けて描かれません。
+
+## 川の流れの設計
+
+島タブ「川の流れの設計」で島ごとに設定します。
+
+- 自動の川を生成: 山の水源・湖からの自動河川のON/OFF（OFFなら手動の川のみ）
+- 湖から川を流し出す: 既定OFF。ONで湖の流出口から川が流れ出ます
+- 手動の川: 水源→河口の点を順に置くと、その経路に川を刻みます（`manualRivers: [{points:[{x,z}]}]`、座標は島の半サイズで正規化）。
+  終点から先は自然な流下方向をたどり、島の端（滝）か湖まで自動で延長されます。
+  3D画面の水色の球をドラッグで移動、「3Dで点を置く」ON中はダブルクリックで点を追加できます。
+  経路が上り坂でも水面は下流へ単調に下がるため、その区間は溝として深く彫られます。

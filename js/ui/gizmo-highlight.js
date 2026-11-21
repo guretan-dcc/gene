@@ -28,8 +28,7 @@ export function selectAndHighlightGizmo(sel, shouldScroll = true) {
         return;
     }
 
-    activateTab('route');
-    setFoldoutOpen('panelRouteBridge', true);
+    if (sel.role !== 'riverPoint') { activateTab('route'); setFoldoutOpen('panelRouteBridge', true); }
     let focusEl = null;
     let labelText = '';
     const islCfg = state.islands[sel.islandIdx] || state.islands[state.selectedIslandIdx];
@@ -98,6 +97,10 @@ export function selectAndHighlightGizmo(sel, shouldScroll = true) {
         } else {
             highlightRelatedPanels([`branch_${bIdx}_0`]);
         }
+    } else if (sel.role === 'riverPoint') {
+        const [rI, pI] = String(sel.wpIdx).split('_');
+        labelText = `選択中: 川 #${parseInt(rI, 10) + 1} - 点${parseInt(pI, 10) + 1}`;
+        focusEl = document.querySelector(`[data-gizmo-row="riverPoint_${rI}_${pI}"]`);
     } else if (sel.role === 'segment') {
         const mode = segTypes[sel.segKey] || 'trail';
         const modeLabel = mode === 'bridge' ? '橋' : (mode === 'tunnel' ? 'トンネル' : (mode === 'none' ? '切断' : '道'));

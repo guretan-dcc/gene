@@ -1,6 +1,7 @@
 import { handleAddWaypointOnDoubleClick, handleDragRouteHandleMove, tryBeginDragRouteHandle, tryToggleSegmentOnClick } from './route-editing.js';
 import { camState, camera, canvas, routeEditState, updateCamera } from './scene.js';
 import { selectAndHighlightGizmo } from '../ui/gizmo-highlight.js';
+import { markDirtyOrRebuild } from '../state.js';
 import { clamp } from '../utils/math.js';
 
 // ドラッグ中のブラウザ既定動作（テキスト選択・タッチスクロール等）で
@@ -61,6 +62,7 @@ canvas.addEventListener('pointerup', e => {
     if (routeEditState.draggingHandle) {
         const finished = routeEditState.draggingHandle;
         routeEditState.draggingHandle = null;
+        if (finished.role === 'riverPoint' && finished.moved) markDirtyOrRebuild();
         selectAndHighlightGizmo({
             islandIdx: finished.islandIdx,
             role: finished.role,

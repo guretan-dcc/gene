@@ -9,6 +9,7 @@ import { setFoldoutOpen } from './gizmo-highlight.js';
 import { renderIslandListUI } from './island-list.js';
 import { showToast } from './toast.js';
 import { renderWaypointListUI } from './waypoint-list.js';
+import { addManualRiver, ensureManualRivers, renderRiverListUI } from './river-list.js';
 import { clamp } from '../utils/math.js';
 
 // 色ピッカーのID → state のキー
@@ -26,6 +27,13 @@ const COLOR_MAP = {
 export function syncInspectorUI() {
     renderIslandListUI();
     renderWaypointListUI();
+    renderRiverListUI(syncInspectorUI);
+    {
+        const isl = state.islands[state.selectedIslandIdx];
+        document.getElementById('chkAutoRivers').checked = isl.autoRivers !== false;
+        document.getElementById('chkLakeOutletRiver').checked = isl.lakeOutletRiver === true;
+        document.getElementById('btnRiverDraw').classList.toggle('active', !!routeEditState.riverDraw);
+    }
     const isl = state.islands[state.selectedIslandIdx] || state.islands[0];
     document.getElementById('selectedIslandTitle').textContent = `2. 島の配置・サイズ (${isl.name})`;
     document.getElementById('inpStageName').value = state.stageName;
@@ -169,6 +177,29 @@ export function setupInspectorEvents() {
         });
         rebuildScene();
         syncInspectorUI();
+    });
+
+    document.getElementById('chkAutoRivers').addEventListener('change', e => {
+        state.islands[state.selectedIslandIdx].autoRivers = e.target.checked;
+        markDirtyOrRebuild();
+    });
+    document.getElementById('chkLakeOutletRiver').addEventListener('change', e => {
+        state.islands[state.selectedIslandIdx].lakeOutletRiver = e.target.checked;
+        markDirtyOrRebuild();
+    });
+    document.getElementById('btnAddManualRiver').addEventListener('click', () => {
+        addManualRiver(state.islands[state.selectedIslandIdx]);
+        markDirtyOrRebuild();
+        syncInspectorUI();
+    });
+    document.getElementById('btnRiverDraw').addEventListener('click', e => {
+        routeEditState.riverDraw = !routeEditState.riverDraw;
+        e.currentTarget.classList.toggle('active', routeEditState.riverDraw);
+        if (routeEditState.riverDraw) {
+            const rv = ensureManualRivers(state.islands[state.selectedIslandIdx]);
+            if (rv.length === 0) { rv.push({ points: [] }); routeEditState.activeRiver = 0; syncInspectorUI(); }
+            showToast('3D上をダブルクリックで川の点を追加（水源→河口の順）');
+        }
     });
 
     document.getElementById('btnAddBranch').addEventListener('click', () => {

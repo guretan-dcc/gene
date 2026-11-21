@@ -1,6 +1,6 @@
 import { rebuildScene } from './rebuild.js';
 import { camera, canvas, raycaster, routeEditState, routeHandleMeshes, segmentToggleMeshes } from './scene.js';
-import { builtArchipelago, state } from '../state.js';
+import { builtArchipelago, markDirtyOrRebuild, state } from '../state.js';
 import { selectAndHighlightGizmo } from '../ui/gizmo-highlight.js';
 import { syncInspectorUI } from '../ui/inspector.js';
 import { showToast } from '../ui/toast.js';
@@ -65,7 +65,7 @@ export function tryBeginDragRouteHandle(e) {
         role: ud.role,
         wpIdx: ud.wpIdx
     }, true);
-    rebuildScene();
+    if (ud.role !== 'riverPoint') rebuildScene();   // 川の点はドラッグ終了時に再生成
     return true;
 }
 
@@ -85,6 +85,7 @@ export function handleDragRouteHandleMove(e) {
             if (!obj) return;
             obj.yOffset = Number(clamp((obj.yOffset || 0) + deltaY, -18.0, 35.0).toFixed(2));
         };
+        if (drag.role === 'riverPoint') return;
         if (drag.role === 'entry') adjustYOffset(islCfg.entryNorm);
         else if (drag.role === 'exit') adjustYOffset(islCfg.exitNorm);
         else if (drag.role === 'waypoint' && islCfg.waypointsNorm && islCfg.waypointsNorm[drag.wpIdx]) {
@@ -118,6 +119,20 @@ export function handleDragRouteHandleMove(e) {
     const nx = clamp((pt.x - isl.ox) / isl.half, -0.96, 0.96);
     const nz = clamp((pt.z - isl.oz) / isl.half, -0.96, 0.96);
 
+    if (drag.role === 'riverPoint') {
+        // 地形の再生成は重いので、ドラッグ中は値と球の位置だけ更新し、離した時に再生成する
+        const [rI, pI] = String(drag.wpIdx).split('_').map(v => parseInt(v, 10));
+        const rv = islCfg.manualRivers && islCfg.manualRivers[rI];
+        if (rv && rv.points[pI]) {
+            rv.points[pI] = { x: Number(nx.toFixed(3)), z: Number(nz.toFixed(3)) };
+            drag.moved = true;
+            const mesh = routeHandleMeshes.find(m => m.userData.role === 'riverPoint'
+                && m.userData.islandIdx === drag.islandIdx && String(m.userData.wpIdx) === String(drag.wpIdx));
+            if (mesh) mesh.position.set(isl.ox + nx * isl.half, (hits.length ? pt.y : mesh.position.y - 1.15) + 1.15, isl.oz + nz * isl.half);
+        }
+        return;
+    }
+
     if (drag.role === 'entry') {
         islCfg.entryNorm = { x: Number(nx.toFixed(3)), z: Number(nz.toFixed(3)), yOffset: islCfg.entryNorm ? (islCfg.entryNorm.yOffset || 0) : 0 };
     } else if (drag.role === 'exit') {
@@ -145,6 +160,26 @@ export function handleAddWaypointOnDoubleClick(e) {
     const terrainMeshes = builtArchipelago.builtIslands.map(isl => isl.terrainMeshObj).filter(Boolean);
     const hits = raycaster.intersectObjects(terrainMeshes, false);
     if (hits.length === 0) return;
+
+    if (routeEditState.riverDraw) {
+        const hi = hits[0].object.userData.islandIdx;
+        state.selectedIslandIdx = hi;
+        const isl2 = builtArchipelago.builtIslands[hi];
+        const cfg2 = state.islands[hi];
+        if (!Array.isArray(cfg2.manualRivers)) cfg2.manualRivers = [];
+        if (cfg2.manualRivers.length === 0) cfg2.manualRivers.push({ points: [] });
+        const ai = clamp(routeEditState.activeRiver, 0, cfg2.manualRivers.length - 1);
+        routeEditState.activeRiver = ai;
+        const p2 = hits[0].point;
+        cfg2.manualRivers[ai].points.push({
+            x: Number(clamp((p2.x - isl2.ox) / isl2.half, -0.96, 0.96).toFixed(3)),
+            z: Number(clamp((p2.z - isl2.oz) / isl2.half, -0.96, 0.96).toFixed(3))
+        });
+        syncInspectorUI();
+        markDirtyOrRebuild();
+        showToast(`川 #${ai + 1} に点を追加しました`);
+        return;
+    }
 
     const hitIslIdx = hits[0].object.userData.islandIdx;
     state.selectedIslandIdx = hitIslIdx;

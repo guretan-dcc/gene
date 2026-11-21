@@ -2905,6 +2905,20 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
     // 崖・岩盤・氷の三角形の向きを揃える（Unityの裏面カリングで穴に見えるのを防ぐ）
     unifyWinding(terrainMb);
 
+    // 手動の川の経路点 (3Dハンドル表示用)
+    const riverPointWorlds = (Array.isArray(islCfg.manualRivers) ? islCfg.manualRivers : []).map(r =>
+        (Array.isArray(r.points) ? r.points : []).map(p => {
+            const tx = p.x * half, tz = p.z * half;
+            let best = -1, bd = Infinity;
+            for (let i = 0; i < n; i++) {
+                if (!inside[i]) continue;
+                const d = (xz[i].x - tx) ** 2 + (xz[i].z - tz) ** 2;
+                if (d < bd) { bd = d; best = i; }
+            }
+            const gy = best >= 0 ? H[best] : 0;
+            return { x: tx + ox, y: gy + oy, z: tz + oz, groundY: gy + oy };
+        }));
+
     return {
         name: islCfg.name,
         seed: islCfg.seed,
@@ -2927,6 +2941,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
         exitShorePos: exitResolved.worldPos,
         exitGroundY: exitResolved.groundWorldY,
         waypointWorldPositions: waypointResolved.map(r => r.worldPos),
+        riverPointWorlds,
         waypointGroundYs: waypointResolved.map(r => r.groundWorldY),
         waypointRoles,
         branchPointRoles,
