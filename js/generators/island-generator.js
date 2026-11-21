@@ -2558,17 +2558,23 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
             }
             const totalPolyLen = cumLen[lipPts.length - 1];
             const mouthWidth = Math.max(cellSize * 0.65, Math.hypot(chordX, chordZ));
-            const cols = clamp(Math.ceil(mouthWidth / Math.max(2, cellSize * 0.9)), 3, 9);
+            // 滝口の列は川の縁の頂点そのものを使う（川の水面と辺を共有して隙間を作らない）。
+            // 頂点が多すぎる場合だけ、弧長で間引く。
+            const cols = Math.min(lipPts.length - 1, 12);
+            const useVerts = (lipPts.length - 1) <= 12;
 
             const midX = 0.5 * (startL.x + startR.x), midZ = 0.5 * (startL.z + startR.z);
-            const lat0 = [], fwd0 = [], y0 = [];
+            const lat0 = [], fwd0 = [], y0 = [], uArc = [];
             let maxFwd0 = -Infinity, sumY0 = 0;
             for (let j = 0; j <= cols; j++) {
-                const sp = samplePolyline(lipPts, cumLen, totalPolyLen, totalPolyLen * (j / cols));
+                const sp = useVerts
+                    ? lipPts[j]
+                    : samplePolyline(lipPts, cumLen, totalPolyLen, totalPolyLen * (j / cols));
                 const rx = sp.x - midX, rz = sp.z - midZ;
                 lat0.push(rx * sideAxis.x + rz * sideAxis.z);
                 fwd0.push(rx * outDir.x + rz * outDir.z);
                 y0.push(sp.y);
+                uArc.push(useVerts ? (totalPolyLen > 1e-5 ? cumLen[j] / totalPolyLen : j / cols) : j / cols);
                 sumY0 += sp.y;
                 if (fwd0[j] > maxFwd0) maxFwd0 = fwd0[j];
             }
@@ -2594,18 +2600,18 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
             const yCurve = new Array(steps + 1).fill(0);
             const ringCol = new Array(steps + 1);
 
-            const lipInset = cellSize * 0.14;
+            const lipInset = 0; // 川の水面と辺を共有するため内側へ引っ込めない
             const row0 = [];
             for (let j = 0; j <= cols; j++) {
                 row0.push({
                     x: midX + outDir.x * (fwd0[j] - lipInset) + sideAxis.x * lat0[j],
-                    y: y0[j] - 0.02,
+                    y: y0[j],
                     z: midZ + outDir.z * (fwd0[j] - lipInset) + sideAxis.z * lat0[j]
                 });
             }
             front.push(row0);
             fwdCurve[0] = 0.5 * (fwd0[0] + fwd0[cols]) - lipInset;
-            yCurve[0] = avgLipY - 0.02;
+            yCurve[0] = avgLipY;
             ringCol[0] = waterCol;
 
             for (let s = 1; s <= steps; s++) {
@@ -2618,7 +2624,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                     const archWeight = smoothstep(0, 0.30, tau);
                     let fwdCenter = 0;
                     for (let j = 0; j <= cols; j++) {
-                        const uNorm = 2 * (j / cols) - 1;
+                        const uNorm = 2 * uArc[j] - 1;
                         const archProfile = 1 - uNorm * uNorm;
                         const fwdJ = lerpNum(fwd0[j], jetReach, reachFrac) + cellSize * 0.14 * archProfile * archWeight;
                         const latJ = lat0[j] * wScale;
@@ -2666,7 +2672,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                 const thickBase = lerpNum(0.36, 0.74, smoothstep(0, 0.35, tauCurve)) * lerpNum(0.65, 1.0, wScale);
                 const row = [];
                 for (let j = 0; j <= cols; j++) {
-                    const uNorm = 2 * (j / cols) - 1;
+                    const uNorm = 2 * uArc[j] - 1;
                     const archProfile = 1 - uNorm * uNorm;
                     const colThick = thickBase * (0.65 + 0.35 * archProfile);
                     const f = front[s][j];
