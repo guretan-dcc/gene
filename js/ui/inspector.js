@@ -94,10 +94,14 @@ export function setupInspectorEvents() {
         btnManual.className = !isRT
             ? 'px-2.5 py-1 text-[11px] rounded bg-[#2563eb] text-white font-medium'
             : 'px-2.5 py-1 text-[11px] rounded text-[#a1a1aa] hover:text-white';
+        // リアルタイム中は変更が即反映されるので、生成ボタンは押せなくする
+        btnGenerateNow.disabled = isRT;
+        btnGenerateNow.title = isRT ? 'リアルタイムモードでは自動で反映されます' : '現在の設定で生成';
         if (isRT && hasPendingChanges) {
             markDirtyOrRebuild(true);
         }
     }
+    setGenMode('realtime');
 
     btnRealtime.addEventListener('click', () => setGenMode('realtime'));
     btnManual.addEventListener('click', () => setGenMode('manual'));
