@@ -26,8 +26,6 @@ Material:
     m_Ints: []
     m_Floats:
     - _Brightness: 1
-    - _Opacity: 0.88
-    - _Shininess: 0.35
-    - _SpecIntensity: 0.35
+    - _Opacity: 0.95
     m_Colors: []
   m_BuildTextureStacks: []

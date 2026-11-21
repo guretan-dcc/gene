@@ -1,9 +1,7 @@
 Shader "MyWorld/Low Poly Water" {
     Properties {
-        _Opacity ("Opacity", Range(0, 1)) = 0.88
+        _Opacity ("Opacity", Range(0, 1)) = 0.95
         _Brightness ("Brightness", Range(0.5, 1.5)) = 1.0
-        _Shininess ("Specular Power", Range(0.03, 1)) = 0.35
-        _SpecIntensity ("Specular Intensity", Range(0, 1)) = 0.35
     }
     SubShader {
         Tags { "RenderType"="Transparent" "Queue"="Transparent" "IgnoreProjector"="True" }
@@ -16,13 +14,11 @@ Shader "MyWorld/Low Poly Water" {
         }
 
         CGPROGRAM
-        #pragma surface surf BlinnPhong vertex:vert alpha:fade noshadow noforwardadd exclude_path:deferred
+        #pragma surface surf Lambert vertex:vert alpha:fade noshadow noforwardadd exclude_path:deferred
         #pragma target 3.0
 
         float _Opacity;
         float _Brightness;
-        float _Shininess;
-        float _SpecIntensity;
 
         struct Input { float4 color : COLOR; };
 
@@ -36,8 +32,6 @@ Shader "MyWorld/Low Poly Water" {
         void surf(Input input, inout SurfaceOutput output) {
             output.Albedo = input.color.rgb * _Brightness;
             output.Alpha = input.color.a * _Opacity;
-            output.Specular = _Shininess;
-            output.Gloss = _SpecIntensity;
         }
         ENDCG
     }

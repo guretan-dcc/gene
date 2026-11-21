@@ -18,7 +18,7 @@ export function rebuildScene() {
     const waterMat = new THREE.MeshLambertMaterial({
         vertexColors: true,
         transparent: true,
-        opacity: 0.88,
+        opacity: 0.95,
         wireframe: showFlags.wire
     });
 
