@@ -33,7 +33,7 @@ export function createGizmoGroup(arch) {
     }
 
     // 各島のドラッグ可能なルート＆橋アンカー球と、区間ごとの切断/接続ダイヤモンドマーカー
-    const riverMode = routeEditState.activeTab === 'river';
+    const riverMode = routeEditState.activeTab === 'terrain';
     arch.builtIslands.forEach((isl, islIdx) => {
         if (routeEditState.soloIsland && islIdx !== state.selectedIslandIdx) return;
 

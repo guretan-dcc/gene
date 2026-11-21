@@ -15,8 +15,8 @@ export function activateTab(name) {
     if (scroller) scroller.scrollTop = 0;
     const prev = routeEditState.activeTab;
     routeEditState.activeTab = name;
-    routeEditState.riverDraw = (name === 'river');
-    if ((prev === 'river') !== (name === 'river')) refreshGizmos();
+    routeEditState.riverDraw = (name === 'terrain');
+    if ((prev === 'terrain') !== (name === 'terrain')) refreshGizmos();
     try { localStorage.setItem(STORAGE_KEY, name); } catch (_) { /* 保存できなくても動作に影響なし */ }
 }
 
