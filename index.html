@@ -57,6 +57,18 @@
             </button>
         </div>
 
+        <!-- Output / Undo bar (常時表示) -->
+        <div class="bg-[#1c1c20] border-b border-[#141417] px-3 py-1.5 flex flex-wrap items-center gap-1.5 flex-shrink-0">
+            <button id="btnUndo" class="u-btn !px-2 py-0.5 text-[12px]" title="元に戻す (Ctrl+Z)" disabled>↶</button>
+            <button id="btnRedo" class="u-btn !px-2 py-0.5 text-[12px]" title="やり直し (Ctrl+Y)" disabled>↷</button>
+            <span class="flex-1"></span>
+            <button id="btnExportPrefab" class="u-btn u-btn-primary py-0.5 px-2 text-[11px]" title="Unity Prefab (.prefab) を出力">Prefab</button>
+            <button id="btnExportPly" class="u-btn py-0.5 px-2 text-[11px]" title="頂点カラーMesh (.ply) を出力">PLY</button>
+            <button id="btnExportJson" class="u-btn u-btn-emerald py-0.5 px-2 text-[11px]" title="生成設定をファイル(.json)に書き出し">生成設定書き出し</button>
+            <button id="btnImportJson" class="u-btn py-0.5 px-2 text-[11px]" title="書き出した生成設定を読み込み">生成設定読込</button>
+            <input type="file" id="fileImportJson" accept=".json,application/json" class="hidden">
+        </div>
+
         <!-- Compact Status Bar -->
         <div class="bg-[#18181c] border-b border-[#2b2b30] px-3 py-1.5 flex items-center justify-between text-[11px] text-[#a1a1aa] flex-shrink-0">
             <div class="flex items-center gap-2">
@@ -65,18 +77,6 @@
                 <span>三角: <strong id="hudTris" class="text-white font-mono">0</strong></span>
             </div>
             <div>植生: <strong id="hudVegInfo" class="text-white font-mono">0本/0株</strong></div>
-        </div>
-
-        <!-- Output / Undo bar (常時表示) -->
-        <div class="bg-[#1c1c20] border-b border-[#141417] px-3 py-1.5 flex flex-wrap items-center gap-1.5 flex-shrink-0">
-            <button id="btnUndo" class="u-btn !px-2 py-0.5 text-[12px]" title="元に戻す (Ctrl+Z)" disabled>↶</button>
-            <button id="btnRedo" class="u-btn !px-2 py-0.5 text-[12px]" title="やり直し (Ctrl+Y)" disabled>↷</button>
-            <span class="flex-1"></span>
-            <button id="btnExportPrefab" class="u-btn u-btn-primary py-0.5 px-2 text-[11px]" title="Unity Prefab (.prefab) を出力">Prefab</button>
-            <button id="btnExportPly" class="u-btn py-0.5 px-2 text-[11px]" title="頂点カラーMesh (.ply) を出力">PLY</button>
-            <button id="btnExportJson" class="u-btn u-btn-emerald py-0.5 px-2 text-[11px]" title="設定をJSONで保存">JSON保存</button>
-            <button id="btnImportJson" class="u-btn py-0.5 px-2 text-[11px]" title="保存した設定JSONを読み込み">JSON読込</button>
-            <input type="file" id="fileImportJson" accept=".json,application/json" class="hidden">
         </div>
 
         <!-- Tabs -->

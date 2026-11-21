@@ -14,7 +14,7 @@ function validate(data) {
     });
 }
 
-// 「設定JSON (.json)」で書き出したファイルを読み込んで復元する
+// 「生成設定書き出し」で書き出したファイルを読み込んで復元する
 export async function importSettingsFile(file) {
     try {
         const data = JSON.parse(await file.text());
@@ -27,6 +27,6 @@ export async function importSettingsFile(file) {
         syncInspectorUI();
         showToast(`${file.name} を読み込みました`);
     } catch (err) {
-        showToast(`JSONを読み込めませんでした: ${err.message}`);
+        showToast(`生成設定を読み込めませんでした: ${err.message}`);
     }
 }

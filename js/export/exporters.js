@@ -172,7 +172,7 @@ ${COMMON}
 
 export function exportSettingsJson() {
     downloadText(`${state.stageName}_Settings.json`, JSON.stringify(state, null, 2));
-    showToast("設定JSONを保存しました");
+    showToast("生成設定を書き出しました");
 }
 
 export function exportPlyMesh() {
