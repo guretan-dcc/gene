@@ -20,7 +20,8 @@ js/
   scene/route-editing.js      ルート編集（ドラッグ/追加）
   scene/rebuild.js            シーン再構築
   mesh/colored-mesh-builder.js  頂点カラーメッシュビルダー
-  generators/island-generator.js  単一浮島生成（地形・川・湖・洞窟・植生）
+  generators/island-generator.js  単一浮島生成（地形・湖・洞窟・滝・植生）
+  generators/hydrology-rivers.js  河川ネットワーク生成と河道の彫り込み（Unity版 BuildHydrology の移植）
   generators/bridge-generator.js  橋メッシュ生成
   export/unity-yaml.js        Unity YAML シリアライズ
   export/exporters.js         Prefab / JSON / PLY 出力

@@ -1,4 +1,5 @@
 import { ColoredMeshBuilder, unifyWinding } from '../mesh/colored-mesh-builder.js';
+import { carveRivers } from './hydrology-rivers.js';
 import { state } from '../state.js';
 import { clamp, lerpColor, shadeColor, smoothstep } from '../utils/math.js';
 import { PerlinNoise2D, SeededRandom } from '../utils/random.js';
@@ -359,228 +360,53 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
         }
     }
 
-    // 流路探索用の flowF を構築し、渓谷湖の流出口（または山岳の谷頭）から1本の主要な蛇行河川を流す
-    const flowH = new Float32Array(n);
+    // 雪線: 積雪帯では川を通さず、湖は凍らせる（Unity版の snowZone / snowBuffer / lakeFrozen 相当）
+    const sharedWorldSnowLine = state.globalSnowLine !== undefined ? state.globalSnowLine : 32;
+    const snowThresholdAt = (c) => {
+        const px = xz[c].x / half, pz = xz[c].z / half;
+        const jitter = (perlin.fbm(px * 2.2, pz * 2.2, 10, 1.6, 2) - 0.5) * 4.5;
+        return sharedWorldSnowLine + 0.25 + jitter; // 雪ブレンドの中間点 (snowW = 0.5)
+    };
+    const lakeFrozen = [false];
+    for (let lid = 1; lid < lakeLevels.length; lid++) {
+        let cnt = 0, sumThr = 0;
+        for (let c = 0; c < n; c++) {
+            if (lakeId[c] !== lid) continue;
+            cnt++;
+            sumThr += snowThresholdAt(c);
+        }
+        if (cnt === 0) { lakeFrozen.push(false); continue; }
+        const worldLevel = lakeLevels[lid] + oy;
+        const avgThr = sumThr / cnt;
+        // 小さな水たまりが単独で氷化して白い斑点にならないよう、小規模湖は雪線を厳密に見る
+        lakeFrozen.push(cnt < 24
+            ? (worldLevel >= avgThr && worldLevel >= sharedWorldSnowLine - 6.0)
+            : (worldLevel >= avgThr - 2.5));
+    }
+    const isLakeFrozen = (lid) => lid > 0 && lid < lakeFrozen.length && lakeFrozen[lid];
+    const snowZone = new Uint8Array(n);
+    const snowBuffer = new Uint8Array(n);
     for (let i = 0; i < n; i++) {
-        let bias = 0;
-        if (inside[i] && lakeId[i] === 0) {
-            const px = baseXz[i].x / half, pz = baseXz[i].z / half;
-            const meander = Math.sin((px * mtDirX + pz * mtDirZ) * 4.2) * 0.85;
-            const across = (px * canyonDirX + pz * canyonDirZ) - meander * 0.18;
-            bias = Math.abs(across) * 1.6 * (1.0 - mountain[i] * 0.4);
-        }
-        flowH[i] = H[i] + bias;
+        if (inside[i] && (H[i] + oy) >= snowThresholdAt(i) - 6.0) snowZone[i] = 1;
     }
-    const flowF = new Float32Array(n);
-    closed.fill(0);
-    pq.length = 0;
-    for (let i = 0; i < n; i++) {
-        if (inside[i]) continue;
-        closed[i] = 1;
-        flowF[i] = flowH[i];
-        for (let k = 0; k < 6; k++) {
-            const nb = Nb(i, k);
-            if (nb >= 0 && inside[nb]) { pqPush(flowF[i], i); break; }
-        }
-    }
-    while (pq.length > 0) {
-        const cur = pqPop();
-        const c = cur.idx;
-        for (let k = 0; k < 6; k++) {
-            const nb = Nb(c, k);
-            if (nb < 0 || closed[nb]) continue;
-            closed[nb] = 1;
-            const eps = 0.0003 + 0.0005 * perlin.fbm(baseXz[nb].x / half, baseXz[nb].z / half, 9, 2.5, 2);
-            flowF[nb] = Math.max(flowH[nb], flowF[c] + eps);
-            pqPush(flowF[nb], nb);
-        }
-    }
-
-    const down = new Int32Array(n).fill(-1);
     for (let i = 0; i < n; i++) {
         if (!inside[i]) continue;
-        let bestS = 0;
+        if (snowZone[i]) { snowBuffer[i] = 1; continue; }
         for (let k = 0; k < 6; k++) {
             const nb = Nb(i, k);
-            if (nb < 0 || flowF[nb] >= flowF[i]) continue;
-            const dist = Math.hypot(xz[i].x - xz[nb].x, xz[i].z - xz[nb].z);
-            const s = (flowF[i] - flowF[nb]) / Math.max(0.1, dist);
-            if (s > bestS) { bestS = s; down[i] = nb; }
+            if (nb >= 0 && snowZone[nb]) { snowBuffer[i] = 1; break; }
         }
     }
 
+    // 河川ネットワークの生成と河道の彫り込み (Unity版 BuildHydrology の移植。hydrology-rivers.js)
     const centerRiver = new Uint8Array(n);
     const bankSlopeFlag = new Uint8Array(n);
     const riverW = new Float32Array(n).fill(NaN);
-    const riverCenterOrdered = [];
-
-    if (islCfg.riverAmount > 0.05) {
-        let startNode = -1;
-        let startLakeId = 0;
-        // 渓谷湖がある場合は湖の最低リム流出口から開始
-        if (lakeLevels.length > 1) {
-            startLakeId = 1;
-            let bestOut = -1, bestOutF = 1e9;
-            for (let i = 0; i < n; i++) {
-                if (lakeId[i] !== 1) continue;
-                for (let k = 0; k < 6; k++) {
-                    const nb = Nb(i, k);
-                    if (nb >= 0 && inside[nb] && lakeId[nb] === 0 && flowF[nb] < bestOutF) {
-                        bestOutF = flowF[nb];
-                        bestOut = nb;
-                    }
-                }
-            }
-            startNode = bestOut;
-        }
-        // 湖がない場合は山あいの谷頭から開始
-        if (startNode < 0) {
-            let bestScore = -1e9;
-            for (let i = 0; i < n; i++) {
-                if (!inside[i] || mask[i] < 0.35 || mountain[i] < 0.25 || mountain[i] > 0.68) continue;
-                const px = xz[i].x / half, pz = xz[i].z / half;
-                const across = Math.abs(px * canyonDirX + pz * canyonDirZ);
-                const score = (1.0 - across * 3.0) * 10.0 + mountain[i] * 5.0;
-                if (score > bestScore) { bestScore = score; startNode = i; }
-            }
-        }
-
-        if (startNode >= 0) {
-            let cur = startNode;
-            const visitedTrace = new Uint8Array(n);
-            for (let step = 0; step < n; step++) {
-                if (cur < 0 || !inside[cur] || visitedTrace[cur]) break;
-                visitedTrace[cur] = 1;
-                if (lakeId[cur] > 0 && cur !== startNode) break;
-                centerRiver[cur] = 1;
-                riverCenterOrdered.push(cur);
-                cur = down[cur];
-            }
-        }
-    }
-
-    // 河川の掘り込み（天井川を防ぐため waterY <= origH - bankDepth を厳守し、湖の流出口もシームレスに繋ぐ）
-    if (riverCenterOrdered.length >= 2) {
-        const origH = new Float32Array(H);
-        const centerWaterY = new Float32Array(n);
-        let prevWaterY = 1e9;
-        if (lakeLevels.length > 1) {
-            prevWaterY = lakeLevels[1];
-        }
-
-        for (let idx = 0; idx < riverCenterOrdered.length; idx++) {
-            const r = riverCenterOrdered[idx];
-            const bankH = islCfg.riverBankDepth * (idx < 2 && lakeLevels.length > 1 ? 0.15 : 1.0);
-            const maxAllowedW = origH[r] - bankH;
-            const wY = Math.min(prevWaterY - 0.03, maxAllowedW);
-            const floorW = SafeBedFloor(r) + islCfg.riverDepth * 0.65;
-            centerWaterY[r] = Math.max(floorW, wY);
-            prevWaterY = centerWaterY[r];
-        }
-
-        // 中心線からの距離フィールド (連続する中心線セグメントからの線分距離で計測し、斜め流路での川幅のくびれ・分断を防ぐ)
-        const distToCenter = new Float32Array(n).fill(1e9);
-        const nearestCenter = new Int32Array(n).fill(-1);
-        const bankSlopeSpan = Math.max(cellSize * 1.15, 2.6);
-        const leveeFlatSpan = Math.max(cellSize * 1.25, 3.0);
-        const maxRadius = halfW + bankSlopeSpan + leveeFlatSpan;
-
-        for (let i = 0; i < n; i++) {
-            if (!inside[i]) continue;
-            const px = xz[i].x, pz = xz[i].z;
-            let bestD = 1e9, bestNode = -1;
-            for (let s = 0; s < riverCenterOrdered.length; s++) {
-                const rA = riverCenterOrdered[s];
-                const ax = xz[rA].x, az = xz[rA].z;
-                const dNode = Math.hypot(px - ax, pz - az);
-                if (dNode < bestD) {
-                    bestD = dNode;
-                    bestNode = rA;
-                }
-                if (s + 1 < riverCenterOrdered.length) {
-                    const rB = riverCenterOrdered[s + 1];
-                    const bx = xz[rB].x, bz = xz[rB].z;
-                    const vx = bx - ax, vz = bz - az;
-                    const lenSq = vx * vx + vz * vz;
-                    if (lenSq > 1e-6) {
-                        const t = clamp(((px - ax) * vx + (pz - az) * vz) / lenSq, 0, 1);
-                        const dSeg = Math.hypot(px - (ax + vx * t), pz - (az + vz * t));
-                        if (dSeg < bestD) {
-                            bestD = dSeg;
-                            bestNode = (t < 0.5) ? rA : rB;
-                        }
-                    }
-                }
-            }
-            if (bestD <= maxRadius && bestNode >= 0) {
-                distToCenter[i] = bestD;
-                nearestCenter[i] = bestNode;
-            }
-        }
-
-        for (let i = 0; i < n; i++) {
-            const src = nearestCenter[i];
-            if (src < 0 || !inside[i]) continue;
-            const d = distToCenter[i];
-            let waterY = centerWaterY[src];
-            const wDepth = islCfg.riverDepth;
-            const bankH = islCfg.riverBankDepth;
-
-            // 湖と川の接続部にある境界セルも川と同じ深さに掘り下げ、砂の堤防を完全になくす
-            if (lakeId[i] > 0) {
-                if (d <= halfW + cellSize * 0.6) {
-                    const lLvl = lakeLevels[lakeId[i]];
-                    H[i] = Math.min(H[i], Math.max(SafeBedFloor(i), lLvl - wDepth * 0.85));
-                }
-                continue;
-            }
-
-            // 隣接する湖がある場合は水面高を滑らかに揃える
-            for (let k = 0; k < 6; k++) {
-                const nb = Nb(i, k);
-                if (nb >= 0 && lakeId[nb] > 0) {
-                    waterY = Math.max(waterY, lakeLevels[lakeId[nb]] - 0.05);
-                }
-            }
-
-            if (d <= halfW) {
-                river[i] = 1;
-                riverW[i] = waterY;
-                const normD = clamp(d / halfW, 0, 1);
-                const bedProfile = 1.0 - 0.25 * normD * normD;
-                H[i] = Math.min(origH[i], Math.max(SafeBedFloor(i), waterY - wDepth * bedProfile));
-            } else if (d <= halfW + bankSlopeSpan) {
-                bankSlopeFlag[i] = 1;
-                const t = clamp((d - halfW) / bankSlopeSpan, 0, 1);
-                const leveeTopY = Math.min(origH[i], waterY + bankH);
-                const carvedY = (waterY - wDepth * 0.5) + (leveeTopY - (waterY - wDepth * 0.5)) * smoothstep(0, 1, t);
-                H[i] = Math.max(SafeBedFloor(i), Math.min(origH[i], carvedY));
-            } else if (d <= halfW + bankSlopeSpan + leveeFlatSpan) {
-                const t = clamp((d - halfW - bankSlopeSpan) / leveeFlatSpan, 0, 1);
-                const leveeTopY = Math.min(origH[i], waterY + bankH);
-                const flatWeight = (1.0 - smoothstep(0, 1, t)) * (1.0 - mountain[i] * 0.65);
-                H[i] = origH[i] + (leveeTopY - origH[i]) * flatWeight * 0.65;
-            }
-        }
-
-        // 河道に隣接する1リングの土手頂点にも riverW[b] を設定し、水面を土手斜面の内側へ隙間なく潜り込ませる
-        for (let b = 0; b < n; b++) {
-            if (!inside[b] || river[b] || lakeId[b] > 0) continue;
-            let sumW = 0, cnt = 0;
-            for (let k = 0; k < 6; k++) {
-                const nb = Nb(b, k);
-                if (nb >= 0 && river[nb] && !Number.isNaN(riverW[nb])) {
-                    sumW += riverW[nb];
-                    cnt++;
-                }
-            }
-            if (cnt > 0) {
-                riverW[b] = sumW / cnt;
-                const minRim = riverW[b] + Math.min(0.85, islCfg.riverBankDepth * 0.42);
-                if (H[b] < minRim) H[b] = minRim;
-            }
-        }
-    }
+    const { riverCenterOrdered } = carveRivers({
+        n, resolution, cellSize, half, cliffWidth, jitter: maxJitter, perlin, islCfg, Nb, SafeBedFloor,
+        inside, H, mask, mountain, xz, baseXz, lakeId, lakeLevels, lakeFrozen,
+        centerRiver, river, riverW, bankSlopeFlag, snowZone, snowBuffer
+    });
 
     // 水辺距離フィールド (shore)
     const shore = new Float32Array(n);
@@ -1565,7 +1391,6 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
     const forestSpread = clamp(islCfg.forestSpread !== undefined ? islCfg.forestSpread : 0.46, 0.0, 1.0);
     const meadowSpread = clamp(islCfg.meadowSpread !== undefined ? islCfg.meadowSpread : 0.45, 0.0, 1.0);
     const grassSlopeMargin = islCfg.grassSlopeMargin !== undefined ? islCfg.grassSlopeMargin : 1.2;
-    const sharedWorldSnowLine = state.globalSnowLine !== undefined ? state.globalSnowLine : 32;
     const sharedWorldGreeneryLine = sharedWorldSnowLine - 5.0;
 
     function BiomeWeights(lx, lz) {
@@ -2267,30 +2092,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
         return lerpColor(shallow, deep, smoothstep(0.5, 4.5, depth));
     }
 
-    // ---- 7.0 湖の凍結判定 (Unity版 `lakeFrozen` 相当) ----
-    // 雪が積もる標高の湖は水面を出さず、氷として地形メッシュに追加する（歩行可能・コライダー対象）
-    const snowThresholdAt = (c) => {
-        const px = xz[c].x / half, pz = xz[c].z / half;
-        const jitter = (perlin.fbm(px * 2.2, pz * 2.2, 10, 1.6, 2) - 0.5) * 4.5;
-        return sharedWorldSnowLine + 0.25 + jitter; // 雪ブレンドの中間点 (snowW = 0.5)
-    };
-    const lakeFrozen = [false];
-    for (let lid = 1; lid < lakeLevels.length; lid++) {
-        let cnt = 0, sumThr = 0;
-        for (let c = 0; c < n; c++) {
-            if (lakeId[c] !== lid) continue;
-            cnt++;
-            sumThr += snowThresholdAt(c);
-        }
-        if (cnt === 0) { lakeFrozen.push(false); continue; }
-        const worldLevel = lakeLevels[lid] + oy;
-        const avgThr = sumThr / cnt;
-        // 小さな水たまりが単独で氷化して白い斑点にならないよう、小規模湖は雪線を厳密に見る
-        lakeFrozen.push(cnt < 24
-            ? (worldLevel >= avgThr && worldLevel >= sharedWorldSnowLine - 6.0)
-            : (worldLevel >= avgThr - 2.5));
-    }
-    const isLakeFrozen = (lid) => lid > 0 && lid < lakeFrozen.length && lakeFrozen[lid];
+    // ---- 7.0 湖の凍結 (判定は河川生成の前に済ませてある: lakeFrozen / isLakeFrozen) ----
     const iceBase = lerpColor(palette.water, palette.snow, 0.72);
     const iceShore = lerpColor(iceBase, palette.snow, 0.55);
     const iceRng = new SeededRandom(islCfg.seed + 97);
