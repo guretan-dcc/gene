@@ -2203,7 +2203,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
     };
 
     (function addWaterfalls() {
-        const curveSteps = 9;
+        const curveSteps = 14;
         const curveEndLocal = -Math.max(bottomDepth * 1.35, 60);
         const deepBottom = Math.min(curveEndLocal - 60, -920);
         const extYs = [];
@@ -2397,6 +2397,39 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
             // 川幅に合わせて滝口を始め、落下するにつれて削られた筋のように自然に細く絞る
             const endWidthRatio = lerpNum(0.36, 0.54, clamp(mouthWidth / Math.max(1, riverWidth * 1.4), 0, 1));
 
+            // 崖肌への追従: 滝口の下の崖面を水平レイで探し、水の筋を崖に沿わせる(空中に浮いた薄い帯にしない)
+            const HUG_GAP = 0.22;
+            const tv = terrainMb.v, triN = tv.length / 9;
+            const farFwd = jetReach + cellSize * 8;
+            const hugTarget = (lat, y) => {
+                const Ox = midX + outDir.x * farFwd + sideAxis.x * lat;
+                const Oz = midZ + outDir.z * farFwd + sideAxis.z * lat;
+                const dx = -outDir.x, dz = -outDir.z;
+                let bestT = Infinity;
+                for (let t = 0; t < triN; t++) {
+                    const b = t * 9;
+                    const y0_ = tv[b + 1], y1_ = tv[b + 4], y2_ = tv[b + 7];
+                    if (y < Math.min(y0_, y1_, y2_) || y > Math.max(y0_, y1_, y2_)) continue;
+                    // Möller–Trumbore (方向は水平 (dx,0,dz))
+                    const e1x = tv[b + 3] - tv[b], e1y = y1_ - y0_, e1z = tv[b + 5] - tv[b + 2];
+                    const e2x = tv[b + 6] - tv[b], e2y = y2_ - y0_, e2z = tv[b + 8] - tv[b + 2];
+                    const px = -dz * e2y, py = dz * e2x - dx * e2z, pz = dx * e2y;
+                    const det = e1x * px + e1y * py + e1z * pz;
+                    if (Math.abs(det) < 1e-9) continue;
+                    const inv = 1 / det;
+                    const tx = Ox - tv[b], ty = y - y0_, tz = Oz - tv[b + 2];
+                    const u = (tx * px + ty * py + tz * pz) * inv;
+                    if (u < 0 || u > 1) continue;
+                    const qx = ty * e1z - tz * e1y, qy = tz * e1x - tx * e1z, qz = tx * e1y - ty * e1x;
+                    const v = (dx * qx + dz * qz) * inv;
+                    if (v < 0 || u + v > 1) continue;
+                    const tt = (e2x * qx + e2y * qy + e2z * qz) * inv;
+                    if (tt > 0 && tt < bestT) bestT = tt;
+                }
+                return Number.isFinite(bestT) ? (farFwd - bestT) + HUG_GAP : null;
+            };
+            const lastHug = new Array(cols + 1).fill(null);
+
             const front = [], back = [];
             const fwdCurve = new Array(steps + 1).fill(0);
             const yCurve = new Array(steps + 1).fill(0);
@@ -2432,12 +2465,18 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                         const latJ = lat0[j] * wScale;
                         const baseYJ = lerpNum(y0[j], avgLipY, smoothstep(0, 0.15, tau));
                         const yJ = lerpNum(baseYJ, curveEndY, dropFrac);
+                        let fwdH = fwdJ;
+                        if (yJ < avgLipY - 0.3) {
+                            const tgt = hugTarget(latJ, yJ);
+                            if (tgt !== null) fwdH = lerpNum(fwdJ, tgt, smoothstep(0.12, 0.55, tau));
+                        }
+                        lastHug[j] = fwdH;
                         row.push({
-                            x: midX + outDir.x * fwdJ + sideAxis.x * latJ,
+                            x: midX + outDir.x * fwdH + sideAxis.x * latJ,
                             y: yJ,
-                            z: midZ + outDir.z * fwdJ + sideAxis.z * latJ
+                            z: midZ + outDir.z * fwdH + sideAxis.z * latJ
                         });
-                        if (j === (cols >> 1)) fwdCenter = fwdJ;
+                        if (j === (cols >> 1)) fwdCenter = fwdH;
                     }
                     fwdCurve[s] = fwdCenter;
                     yCurve[s] = lerpNum(avgLipY, curveEndY, dropFrac);
@@ -2446,10 +2485,20 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                 } else {
                     const yExtLocal = extYs[s - curveSteps - 1];
                     const yExt = yExtLocal + oy;
+                    let fwdC = fwdCurve[curveSteps];
                     for (let j = 0; j <= cols; j++) {
-                        row.push({ x: front[curveSteps][j].x, y: yExt, z: front[curveSteps][j].z });
+                        const latE = lat0[j] * endWidthRatio;
+                        const tgt = hugTarget(latE, yExt);
+                        const fwdE = tgt !== null ? tgt : (lastHug[j] !== null ? lastHug[j] : fwdCurve[curveSteps]);
+                        lastHug[j] = fwdE;
+                        row.push({
+                            x: midX + outDir.x * fwdE + sideAxis.x * latE,
+                            y: yExt,
+                            z: midZ + outDir.z * fwdE + sideAxis.z * latE
+                        });
+                        if (j === (cols >> 1)) fwdC = fwdE;
                     }
-                    fwdCurve[s] = fwdCurve[curveSteps];
+                    fwdCurve[s] = fwdC;
                     yCurve[s] = yExt;
                     const foamPhase = clamp((-yExtLocal - 100) / 650, 0, 1);
                     const extCol = lerpColor(waterCol, foamTint, lerpNum(0.65, 0.78, foamPhase));

@@ -78,6 +78,45 @@ export function syncInspectorUI() {
     });
 }
 
+const TAB_NAMES = { island: '島', route: '道・橋', terrain: '地形・水', veg: '植生・色' };
+// 各タブ固有の追加項目 (スライダー以外)
+const TAB_EXTRA_ISL_KEYS = {
+    island: ['seed'],
+    route: ['hasTrail', 'hasInternalBridge', 'hasBridgeToNext', 'entryNorm', 'exitNorm', 'waypointsNorm', 'branches', 'segmentTypes', '_autoBridgeInitialized'],
+    terrain: ['autoRivers', 'lakeOutletRiver', 'manualRivers'],
+    veg: []
+};
+
+// 表示中のタブにある設定だけを、選択中の島（と、そのタブにある共通設定）について初期値へ戻す
+function resetCurrentTab() {
+    const tab = routeEditState.activeTab || 'island';
+    const pane = document.querySelector(`[data-tab-pane="${tab}"]`);
+    if (!pane) return;
+    const idx = state.selectedIslandIdx;
+    const cur = state.islands[idx];
+    const defIsl = createPresetIslands(state.archPreset)[idx] || defaultState.islands[idx];
+    if (cur) {
+        const keys = new Set(TAB_EXTRA_ISL_KEYS[tab] || []);
+        pane.querySelectorAll('[data-isl-bind]').forEach(r => keys.add(r.getAttribute('data-isl-bind')));
+        keys.forEach(k => {
+            if (defIsl && defIsl[k] !== undefined) cur[k] = JSON.parse(JSON.stringify(defIsl[k]));
+            else delete cur[k];
+        });
+    }
+    pane.querySelectorAll('[data-global-bind]').forEach(r => {
+        const k = r.getAttribute('data-global-bind');
+        state[k] = defaultState[k];
+    });
+    Object.entries(COLOR_MAP).forEach(([id, key]) => {
+        const el = document.getElementById(id);
+        if (el && pane.contains(el)) state[key] = defaultState[key];
+    });
+    routeEditState.selectedGizmo = null;
+    rebuildScene();
+    syncInspectorUI();
+    showToast(`「${TAB_NAMES[tab] || tab}」タブを初期設定に戻しました`);
+}
+
 function focusSelectedIsland() {
     if (!builtArchipelago) return;
     const selIsl = builtArchipelago.builtIslands[state.selectedIslandIdx];
@@ -284,13 +323,7 @@ export function setupInspectorEvents() {
         if (file) await importSettingsFile(file);
     });
 
-    document.getElementById('btnResetAll').addEventListener('click', () => {
-        setState(JSON.parse(JSON.stringify(defaultState)));
-        routeEditState.selectedGizmo = null;
-        rebuildScene();
-        syncInspectorUI();
-        showToast("初期設定に戻しました");
-    });
+    document.getElementById('btnResetTab').addEventListener('click', resetCurrentTab);
 
     Object.entries(COLOR_MAP).forEach(([id, key]) => {
         const el = document.getElementById(id);
@@ -307,18 +340,6 @@ export function setupInspectorEvents() {
             const panel = document.getElementById(targetId);
             if (!panel) return;
             setFoldoutOpen(targetId, panel.classList.contains('hidden'));
-        });
-    });
-
-    document.getElementById('btnExpandAllFolds').addEventListener('click', () => {
-        document.querySelectorAll('.u-foldout[data-fold-target]').forEach(h => {
-            setFoldoutOpen(h.getAttribute('data-fold-target'), true);
-        });
-    });
-
-    document.getElementById('btnCollapseAllFolds').addEventListener('click', () => {
-        document.querySelectorAll('.u-foldout[data-fold-target]').forEach(h => {
-            setFoldoutOpen(h.getAttribute('data-fold-target'), false);
         });
     });
 
