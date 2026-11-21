@@ -2905,6 +2905,16 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
     // 崖・岩盤・氷の三角形の向きを揃える（Unityの裏面カリングで穴に見えるのを防ぐ）
     unifyWinding(terrainMb);
 
+    // 川の点の表示高さ: 川床ではなく周囲の地表(岸)の高さに合わせる
+    const surfaceYAt = (lx, lz) => {
+        let m = -Infinity;
+        const r2 = (cellSize * 3.2) ** 2;
+        for (let i = 0; i < n; i++) {
+            if (!inside[i]) continue;
+            if ((xz[i].x - lx) ** 2 + (xz[i].z - lz) ** 2 <= r2 && H[i] > m) m = H[i];
+        }
+        return Number.isFinite(m) ? m : 0;
+    };
     // 自動生成された川の経路点 (3Dハンドル表示用。ドラッグすると手動の川に変換される)
     const autoRiverWorlds = (islCfg.autoRivers === false ? [] : (riverPaths || [])).map(path => {
         const idxs = [];
@@ -2915,7 +2925,8 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
         }
         return idxs.map(k => {
             const c = path[k];
-            return { x: xz[c].x + ox, y: H[c] + oy, z: xz[c].z + oz, groundY: H[c] + oy, nx: xz[c].x / half, nz: xz[c].z / half };
+            const sy = surfaceYAt(xz[c].x, xz[c].z) + oy;
+            return { x: xz[c].x + ox, y: sy, z: xz[c].z + oz, groundY: sy, nx: xz[c].x / half, nz: xz[c].z / half };
         });
     });
 
@@ -2929,7 +2940,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                 const d = (xz[i].x - tx) ** 2 + (xz[i].z - tz) ** 2;
                 if (d < bd) { bd = d; best = i; }
             }
-            const gy = best >= 0 ? H[best] : 0;
+            const gy = best >= 0 ? surfaceYAt(tx, tz) : 0;
             return { x: tx + ox, y: gy + oy, z: tz + oz, groundY: gy + oy };
         }));
 

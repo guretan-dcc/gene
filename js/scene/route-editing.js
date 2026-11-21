@@ -155,7 +155,7 @@ export function handleDragRouteHandleMove(e) {
             scheduleRiverRebuild();
             const mesh = routeHandleMeshes.find(m => m.userData.role === 'riverPoint'
                 && m.userData.islandIdx === drag.islandIdx && String(m.userData.wpIdx) === String(drag.wpIdx));
-            if (mesh) mesh.position.set(isl.ox + nx * isl.half, (hits.length ? pt.y : mesh.position.y - 1.15) + 1.15, isl.oz + nz * isl.half);
+            if (mesh) mesh.position.set(isl.ox + nx * isl.half, (hits.length ? pt.y + 1.6 : mesh.position.y - 1.15) + 1.15, isl.oz + nz * isl.half);
         }
         return;
     }
