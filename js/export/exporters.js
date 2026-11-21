@@ -1,5 +1,5 @@
 import { serializeMeshToUnityYaml } from './unity-yaml.js';
-import { ColoredMeshBuilder } from '../mesh/colored-mesh-builder.js';
+import { ColoredMeshBuilder, fixInwardFacing } from '../mesh/colored-mesh-builder.js';
 import { builtArchipelago, state } from '../state.js';
 import { showToast } from '../ui/toast.js';
 import { clamp } from '../utils/math.js';
@@ -30,8 +30,10 @@ function concatMeshes(list) {
 export function exportUnityPrefab() {
     if (!builtArchipelago) return;
     const islands = builtArchipelago.builtIslands;
+    // 凹凸で折れ返った（裏向きになった）崖の三角形を直す。島ごとに独立した立体として判定する
+    const terrainFixed = islands.map(i => fixInwardFacing(i.terrainMb));
     const parts = {
-        terrain: concatMeshes(islands.map(i => i.terrainMb)),
+        terrain: concatMeshes(terrainFixed),
         water: concatMeshes(islands.map(i => i.waterMb)),
         trees: concatMeshes(islands.map(i => i.treesMb)),
         treesCol: concatMeshes(islands.map(i => i.treeColMb)),

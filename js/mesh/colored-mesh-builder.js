@@ -111,3 +111,78 @@ export function unifyWinding(mb) {
     return flipped;
 }
 
+
+// 崖の凹凸で面が折れ返り、固体の内側を向いてしまった三角形を探して反転する。
+// 位相(辺の向き)は正しくても、外から見ると裏面になり、Unityでは細い穴に見える。
+// 法線方向（と少しずらした2方向）に光線を飛ばし、交差回数が全て奇数（=内側を向いている）のときだけ反転する。
+// 前後どちらも「内側」になる自己交差部は、裏向きの複製を足して両面にする。
+// 全三角形との総当たりなので、書き出し時にだけ呼ぶこと。元のメッシュは変更せず、修正済みのコピーを返す。
+export function fixInwardFacing(src) {
+    const mb = new ColoredMeshBuilder();
+    mb.v = src.v.slice();
+    mb.c = src.c.slice();
+    mb.a = src.a.slice();
+    const n = mb.v.length / 9;
+    const v = mb.v;
+    const both = [];
+    const hitsOdd = (ox, oy, oz, dx, dy, dz, skip) => {
+        let cnt = 0;
+        for (let t = 0; t < n; t++) {
+            if (t === skip) continue;
+            const o = t * 9;
+            const e1x = v[o + 3] - v[o], e1y = v[o + 4] - v[o + 1], e1z = v[o + 5] - v[o + 2];
+            const e2x = v[o + 6] - v[o], e2y = v[o + 7] - v[o + 1], e2z = v[o + 8] - v[o + 2];
+            const hx = dy * e2z - dz * e2y, hy = dz * e2x - dx * e2z, hz = dx * e2y - dy * e2x;
+            const a = e1x * hx + e1y * hy + e1z * hz;
+            if (Math.abs(a) < 1e-12) continue;
+            const f = 1 / a;
+            const sx = ox - v[o], sy = oy - v[o + 1], sz = oz - v[o + 2];
+            const u = f * (sx * hx + sy * hy + sz * hz);
+            if (u < 0 || u > 1) continue;
+            const qx = sy * e1z - sz * e1y, qy = sz * e1x - sx * e1z, qz = sx * e1y - sy * e1x;
+            const w = f * (dx * qx + dy * qy + dz * qz);
+            if (w < 0 || u + w > 1) continue;
+            if (f * (e2x * qx + e2y * qy + e2z * qz) > 1e-4) cnt++;
+        }
+        return (cnt & 1) === 1;
+    };
+    const toFlip = [];
+    for (let t = 0; t < n; t++) {
+        const o = t * 9;
+        const e1x = v[o + 3] - v[o], e1y = v[o + 4] - v[o + 1], e1z = v[o + 5] - v[o + 2];
+        const e2x = v[o + 6] - v[o], e2y = v[o + 7] - v[o + 1], e2z = v[o + 8] - v[o + 2];
+        let nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
+        const len = Math.hypot(nx, ny, nz);
+        if (len < 1e-9) continue;
+        nx /= len; ny /= len; nz /= len;
+        if (Math.abs(ny) > 0.85) continue; // 上面・下面は対象外（氷板なども除外）
+        const gx = (v[o] + v[o + 3] + v[o + 6]) / 3, gy = (v[o + 1] + v[o + 4] + v[o + 7]) / 3, gz = (v[o + 2] + v[o + 5] + v[o + 8]) / 3;
+        const ox = gx + nx * 0.05, oy = gy + ny * 0.05, oz = gz + nz * 0.05;
+        // 法線に直交する2方向へ少しずらした光線でも確認（辺すれすれの誤判定を避ける）
+        const tx = -nz, tz = nx, tl = Math.hypot(tx, tz) || 1;
+        const sx = tx / tl * 0.12, sz = tz / tl * 0.12;
+        if (!(hitsOdd(ox, oy, oz, nx, ny, nz, t)
+            && hitsOdd(ox, oy, oz, nx + sx, ny, nz + sz, t)
+            && hitsOdd(ox, oy, oz, nx - sx, ny, nz - sz, t))) continue;
+        // 反対側（裏面側）が外側と判定できる場合だけ反転する。両側とも「内側」になる自己交差部は触らない（繰り返しても結果が変わらない）
+        const bx = gx - nx * 0.05, by = gy - ny * 0.05, bz = gz - nz * 0.05;
+        if (!hitsOdd(bx, by, bz, -nx, -ny, -nz, t)) toFlip.push(t); else both.push(t);
+    }
+    for (const t of toFlip) {
+        const o = t * 9;
+        for (let k = 0; k < 3; k++) {
+            const tv = v[o + 3 + k]; v[o + 3 + k] = v[o + 6 + k]; v[o + 6 + k] = tv;
+            const tc = mb.c[o + 3 + k]; mb.c[o + 3 + k] = mb.c[o + 6 + k]; mb.c[o + 6 + k] = tc;
+        }
+    }
+    for (const t of both) {
+        const o = t * 9;
+        // 逆巻き（頂点1と2を入れ替え）の複製
+        mb.v.push(v[o], v[o + 1], v[o + 2], v[o + 6], v[o + 7], v[o + 8], v[o + 3], v[o + 4], v[o + 5]);
+        mb.c.push(mb.c[o], mb.c[o + 1], mb.c[o + 2], mb.c[o + 6], mb.c[o + 7], mb.c[o + 8], mb.c[o + 3], mb.c[o + 4], mb.c[o + 5]);
+        mb.a.push(mb.a[t * 3], mb.a[t * 3], mb.a[t * 3]);
+    }
+    mb.fixedCount = toFlip.length;
+    mb.doubledCount = both.length;
+    return mb;
+}
