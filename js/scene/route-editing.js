@@ -37,6 +37,18 @@ export function tryToggleSegmentOnClick(e) {
     return true;
 }
 
+// 川の点をドラッグ中は、重い再生成を間引いて(約150ms間隔)地形に追従させる
+let riverRebuildTimer = null, lastRiverRebuild = 0;
+function scheduleRiverRebuild() {
+    if (riverRebuildTimer) return;
+    const wait = Math.max(0, 150 - (performance.now() - lastRiverRebuild));
+    riverRebuildTimer = setTimeout(() => {
+        riverRebuildTimer = null;
+        lastRiverRebuild = performance.now();
+        if (routeEditState.draggingHandle) markDirtyOrRebuild(true);
+    }, wait);
+}
+
 // 3D画面上でのルート・橋アンカー球のドラッグ＆ダブルクリック追加
 function getNdcMouse(e) {
     const rect = canvas.getBoundingClientRect();
@@ -78,7 +90,7 @@ export function tryBeginDragRouteHandle(e) {
         islandIdx: ud.islandIdx,
         role: ud.role,
         wpIdx: ud.wpIdx
-    }, true);
+    }, ud.role !== 'riverPoint');
     if (ud.role !== 'riverPoint') rebuildScene();   // 川の点はドラッグ終了時に再生成
     return true;
 }
@@ -140,6 +152,7 @@ export function handleDragRouteHandleMove(e) {
         if (rv && rv.points[pI]) {
             rv.points[pI] = { x: Number(nx.toFixed(3)), z: Number(nz.toFixed(3)) };
             drag.moved = true;
+            scheduleRiverRebuild();
             const mesh = routeHandleMeshes.find(m => m.userData.role === 'riverPoint'
                 && m.userData.islandIdx === drag.islandIdx && String(m.userData.wpIdx) === String(drag.wpIdx));
             if (mesh) mesh.position.set(isl.ox + nx * isl.half, (hits.length ? pt.y : mesh.position.y - 1.15) + 1.15, isl.oz + nz * isl.half);
