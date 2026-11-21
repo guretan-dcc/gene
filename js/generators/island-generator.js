@@ -2470,6 +2470,8 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                         if (yJ < avgLipY - 0.3) {
                             const tgt = hugTarget(latJ, yJ);
                             if (tgt !== null) fwdH = lerpNum(fwdJ, clamp(tgt, fwdJ - MAX_TUCK, fwdJ), smoothstep(0.12, 0.55, tau));
+                            // 一度崖に寄ったら外へ振り戻さない（途中で折れ曲がらせない）
+                            if (lastHug[j] !== null) fwdH = Math.min(fwdH, lastHug[j]);
                         }
                         lastHug[j] = fwdH;
                         row.push({
@@ -2489,10 +2491,8 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                     let fwdC = fwdCurve[curveSteps];
                     for (let j = 0; j <= cols; j++) {
                         const latE = lat0[j] * endWidthRatio;
-                        const tgt = hugTarget(latE, yExt);
-                        const uN = 2 * uArc[j] - 1;
-                        const freeEnd = jetReach + cellSize * 0.14 * (1 - uN * uN);
-                        const fwdE = tgt !== null ? clamp(tgt, freeEnd - MAX_TUCK, freeEnd) : freeEnd;
+                        // カーブ終端の位置のまま真下へ落とす（段差・折れを作らない）
+                        const fwdE = lastHug[j] !== null ? lastHug[j] : fwdCurve[curveSteps];
                         lastHug[j] = fwdE;
                         row.push({
                             x: midX + outDir.x * fwdE + sideAxis.x * latE,
