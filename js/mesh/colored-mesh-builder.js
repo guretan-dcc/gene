@@ -68,16 +68,6 @@ export function unifyWinding(mb) {
         }
         return 0;
     };
-    const normalY = t => {
-        const o = t * 9, v = mb.v;
-        const ux = v[o + 3] - v[o], uz = v[o + 5] - v[o + 2];
-        const wx = v[o + 6] - v[o], wz = v[o + 8] - v[o + 2];
-        const nx = (v[o + 4] - v[o + 1]) * wz - uz * (v[o + 7] - v[o + 1]);
-        const ny = uz * wx - ux * wz;
-        const nz = ux * (v[o + 7] - v[o + 1]) - (v[o + 4] - v[o + 1]) * wx;
-        const len = Math.hypot(nx, ny, nz) || 1;
-        return ny / len;
-    };
     for (let s = 0; s < n; s++) {
         if (seen[s]) continue;
         const comp = [s];
@@ -97,11 +87,14 @@ export function unifyWinding(mb) {
                 comp.push(u);
             }
         }
-        // 成分全体: 上向きの面が多数派になる向きにする
+        // 成分全体: 符号付き体積が正（法線が外向き）になる向きにする
         let up = 0;
         for (const t of comp) {
-            const ny = normalY(t) * (flip[t] ? -1 : 1);
-            if (Math.abs(ny) > 0.7) up += ny > 0 ? 1 : -1;
+            const o = t * 9, v = mb.v;
+            const vol = v[o] * (v[o + 4] * v[o + 8] - v[o + 5] * v[o + 7])
+                - v[o + 1] * (v[o + 3] * v[o + 8] - v[o + 5] * v[o + 6])
+                + v[o + 2] * (v[o + 3] * v[o + 7] - v[o + 4] * v[o + 6]);
+            up += flip[t] ? -vol : vol;
         }
         if (up < 0) for (const t of comp) flip[t] ^= 1;
     }
