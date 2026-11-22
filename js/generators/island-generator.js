@@ -2408,6 +2408,8 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                     return fwd0[bj];
                 };
                 const trimTop = avgLipY - 0.25;
+                const tcc = terrainMb.c;
+                const rockC = palette.rock;
                 for (let i = 0; i < tvv.length; i += 3) {
                     const wy = tvv[i + 1];
                     if (wy > trimTop || wy < avgLipY - 34) continue;
@@ -2416,9 +2418,14 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                     const wl = 1 - smoothstep(maxLat + 0.6, maxLat + 3.8, Math.abs(l));
                     if (wl <= 0) continue;
                     const f = wx * outDir.x + wz * outDir.z;
+                    const wd = 1 - smoothstep(14, 32, avgLipY - wy);
+                    // 川底の砂色が滝口の下の崖に残らないよう、岩の色へ寄せる
+                    const cw = 0.85 * wl * wd;
+                    tcc[i] += (rockC.r - tcc[i]) * cw;
+                    tcc[i + 1] += (rockC.g - tcc[i + 1]) * cw;
+                    tcc[i + 2] += (rockC.b - tcc[i + 2]) * cw;
                     const fRef = refFwdAt(l) + 0.1;
                     if (f <= fRef) continue;
-                    const wd = 1 - smoothstep(14, 32, avgLipY - wy);
                     const dF = (f - fRef) * wl * wd;
                     tvv[i] -= outDir.x * dF;
                     tvv[i + 2] -= outDir.z * dF;
@@ -2493,7 +2500,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
             }
 
             // (2) 行の定義: 0=川の縁 / 1=延長した滝口 / 以降=滝口からの深さ d / 最後=カーブ終端・延長行
-            const D_ROWS = [0.04, 0.12, 0.25, 0.45, 0.72, 1.05, 1.45, 1.9, 2.4, 3.2, 4.3, 5.8, 7.8, 10.2, 13.2, 17.0, 22.0];
+            const D_ROWS = [0.15, 0.5, 1.1, 1.9, 3.0, 4.5, 6.5, 9.0, 12.0, 16.0, 22.0];
             const rowSpec = [{ kind: 'rim' }, { kind: 'lip' }];
             for (const d of D_ROWS) rowSpec.push({ kind: 'd', d });
             rowSpec.push({ kind: 'abs', y: curveEndY, ext: false });
@@ -2603,7 +2610,9 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                 const sp = rowSpec[k];
                 if (sp.kind === 'rim' || sp.kind === 'lip') { ringCol[k] = waterCol; continue; }
                 if (sp.kind === 'd') {
-                    const foam = lerpColor(waterCol, foamTint, clamp(sp.d / 22 * 0.65, 0, 1));
+                    // 縁を越えて下を向く面は陰になって暗い帯に見えるため、その付近だけ明るい水色へ寄せて補正する
+                    const bend = 0.2 * Math.exp(-(((sp.d - 1.5) / 1.8) ** 2));
+                    const foam = lerpColor(waterCol, foamTint, clamp(sp.d / 22 * 0.65 + bend, 0, 1));
                     ringCol[k] = shadeColor(foam, rng.next() * 0.06 - 0.03);
                 } else if (!sp.ext) {
                     ringCol[k] = shadeColor(lerpColor(waterCol, foamTint, 0.65), rng.next() * 0.06 - 0.03);
