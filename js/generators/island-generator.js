@@ -2465,7 +2465,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
             }
 
             // (2) 行の定義: 0=川の縁 / 1=延長した滝口 / 以降=滝口からの深さ d / 最後=カーブ終端・延長行
-            const D_ROWS = [0.12, 0.3, 0.55, 0.9, 1.4, 2.1, 3.0, 4.2, 5.8, 7.8, 10.2, 13.2, 17.0, 22.0];
+            const D_ROWS = [0.04, 0.12, 0.25, 0.45, 0.72, 1.05, 1.45, 1.9, 2.4, 3.2, 4.3, 5.8, 7.8, 10.2, 13.2, 17.0, 22.0];
             const rowSpec = [{ kind: 'rim' }, { kind: 'lip' }];
             for (const d of D_ROWS) rowSpec.push({ kind: 'd', d });
             rowSpec.push({ kind: 'abs', y: curveEndY, ext: false });
@@ -2499,7 +2499,11 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                     if (k === 0) { row.push(fwd0[j]); continue; }
                     if (k === 1) { row.push(lipFwd[j]); continue; }
                     const sp = rowSpec[k];
-                    const arch = sp.kind === 'd' ? 0.35 * (1 - Math.exp(-sp.d / 0.8)) : 0.35;
+                    // 縁を 1/4 円で丸く越える(縁では水平→落ちるにつれ垂直)。直角の折れ目を作らない
+                    const RC = 2.4;
+                    const arch = sp.kind === 'd'
+                        ? RC * Math.sqrt(Math.max(0, 1 - (1 - Math.min(sp.d, RC) / RC) ** 2))
+                        : RC;
                     let need = null;
                     const yc = rowY[k][j];
                     const yPrev = rowY[k - 1][j], yNext = k + 1 < nRows ? rowY[k + 1][j] : yc - 2;
