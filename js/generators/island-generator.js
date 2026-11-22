@@ -2219,6 +2219,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
         const waterCol = palette.water;
         const foamTint = lerpColor(waterCol, { r: 1, g: 1, b: 1 }, 0.45);
         const riverWidth = islCfg.riverWidth;
+        let wfUnified = false;
 
         for (let m = 0; m < n; m++) {
             if (!centerRiver[m] || mouthUsed[m] || Number.isNaN(riverW[m])) continue;
@@ -2399,6 +2400,9 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
             // 川幅に合わせて滝口を始め、落下するにつれて削られた筋のように自然に細く絞る
             const endWidthRatio = lerpNum(0.36, 0.54, clamp(mouthWidth / Math.max(1, riverWidth * 1.4), 0, 1));
 
+            // 巻き方向を揃えておく (以降の外向き法線の判定に使う。最後にもう一度揃えるので重複しても問題ない)
+            if (!wfUnified) { unifyWinding(terrainMb); wfUnified = true; }
+
             // ---- 滝口の地形整形: 川の流路が島の外へ張り出した「岩の棚」を削り、滝口の下を自然な崖肌にする ----
             {
                 const tvv = terrainMb.v;
@@ -2434,60 +2438,64 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                 }
             }
 
-            // ---- 滝の水面: 地形の三角形そのものに水の皮(スキン)を張り、崖肌を伝って落ちる ----
-            // 水の頂点 = 地形の頂点 + (法線方向の薄い厚み) + (縁付近だけ勢いで少し外へ)。
-            // 川の水面と同じ頂点・同じ三角形の割り方なので、川からそのまま崖へ続く。
-            const bedRimY = (() => {
-                // 川の縁付近の川床の高さ (中央付近の頂点の中央値)
-                const ys = [];
-                const fRimAvg0 = fwd0.reduce((a, b) => a + b, 0) / fwd0.length;
-                for (let i = 0; i < terrainMb.v.length; i += 3) {
-                    const wx = terrainMb.v[i] - midX, wz = terrainMb.v[i + 2] - midZ;
-                    const l = wx * sideAxis.x + wz * sideAxis.z, f = wx * outDir.x + wz * outDir.z;
-                    const wy = terrainMb.v[i + 1];
-                    if (Math.abs(l) < Math.max(0.5, maxLatAll(lat0) * 0.5) && Math.abs(f - fRimAvg0) < 0.9 && wy > avgLipY - 3 && wy < avgLipY + 0.2) ys.push(wy);
-                }
-                if (ys.length === 0) return avgLipY - 0.5;
-                ys.sort((p, q) => p - q);
-                return ys[ys.length >> 1];
-            })();
-            const liftL0 = clamp(avgLipY - bedRimY, 0, 2.0);
-            const fRim = fwd0.reduce((a, b) => a + b, 0) / fwd0.length;
-            const maxLatS = maxLatAll(lat0);
-            const halfWAt = (d) => (maxLatS + 0.25) * lerpNum(1.0, endWidthRatio, smoothstep(2.0, 22, Math.max(0, d)));
-            const islandCore = { x: ox, y: oy - bottomDepth * 0.4, z: oz };
-
+            // ---- 滝の水面: 崖肌の三角形そのものに水の皮(スキン)を張り、その下端から細い落水へ繋ぐ ----
+            // ・巻き方向から外向きの法線を得る(島の中心からの向きでは、底面の法線が内向きになり水が岩に埋まるため)
+            // ・川の水面を堰き止めている縁の盛り上がりを削り、川の水面→崖肌が途切れなく続くようにする
+            // ・崖肌の三角形は地形と同じ頂点・同じ割り方なので、川のメッシュ(三角形)の雰囲気のまま落ちる
             const tvS = terrainMb.v;
             const nTri = tvS.length / 9;
-            const selTris = [];
+            const fRim = fwd0.reduce((a, b) => a + b, 0) / fwd0.length;
+            const maxLatS = maxLatAll(lat0);
+            const halfW0 = maxLatS + 0.25;
             const vkey = (x, y, z) => `${Math.round(x * 500)},${Math.round(y * 500)},${Math.round(z * 500)}`;
-            const vertMap = new Map();   // 溶接頂点 -> {nx,ny,nz, f,l,y, w}
-            const faceNs = new Array(nTri);
-            for (let t = 0; t < nTri; t++) {
-                const b9 = t * 9;
-                const ax = tvS[b9], ay = tvS[b9 + 1], az = tvS[b9 + 2];
-                const ux = tvS[b9 + 3] - ax, uy = tvS[b9 + 4] - ay, uz = tvS[b9 + 5] - az;
-                const vx = tvS[b9 + 6] - ax, vy = tvS[b9 + 7] - ay, vz = tvS[b9 + 8] - az;
-                let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
-                const nl = Math.hypot(nx, ny, nz);
-                if (nl < 1e-7) continue;
-                nx /= nl; ny /= nl; nz /= nl;
-                const cx = (ax + tvS[b9 + 3] + tvS[b9 + 6]) / 3, cy = (ay + tvS[b9 + 4] + tvS[b9 + 7]) / 3, cz = (az + tvS[b9 + 5] + tvS[b9 + 8]) / 3;
-                // 島の内側→外側を向くよう法線を揃える (巻き方向が未統一でも判定できるように)
-                if (nx * (cx - islandCore.x) + ny * (cy - islandCore.y) + nz * (cz - islandCore.z) < 0) { nx = -nx; ny = -ny; nz = -nz; }
-                const rx = cx - midX, rz = cz - midZ;
-                const fC = rx * outDir.x + rz * outDir.z, lC = rx * sideAxis.x + rz * sideAxis.z;
-                const dC = avgLipY - cy;
-                if (Math.abs(lC) > halfWAt(dC) + 1.0) continue;
-                const nOut = nx * outDir.x + nz * outDir.z;
-                const isBed = false;   // 川床は川の水面メッシュがそのまま覆うので、水の皮は崖から始める
-                const isCliff = ny > -0.97 && ny < 0.97 && cy <= avgLipY + 0.15 && fC > fRim - 7 && dC < 9 && (nOut > -0.1 || ny < -0.2);
-                if (!isBed && !isCliff) continue;
-                if (Math.max(ay, tvS[b9 + 4], tvS[b9 + 7]) > bedRimY + 0.3 && !(ny > 0.3 && Math.max(ay, tvS[b9 + 4], tvS[b9 + 7]) <= avgLipY + 0.15)) continue;   // 川岸の壁・縁の頂点を含む三角形は使わない(トゲ防止)
-                selTris.push({ t, nx, ny, nz, dC, bed: isBed });
+
+            // 0) 滝口の水位: 縁の川床が水面よりずっと低いと、水面の端が宙に浮いた「水の壁」になる。
+            //    川床+浅い水深の高さまで、滝口に近づくほど水面をなだらかに下げる(水が滝口へ加速して落ちる流れ)。
+            const bedAtLip = (() => {
+                const ys = [];
+                for (let i = 0; i < tvS.length; i += 3) {
+                    const y = tvS[i + 1];
+                    if (y > avgLipY + 0.25 || y < avgLipY - 6) continue;
+                    const rx = tvS[i] - midX, rz = tvS[i + 2] - midZ;
+                    const f = rx * outDir.x + rz * outDir.z, l = rx * sideAxis.x + rz * sideAxis.z;
+                    if (Math.abs(l) <= halfW0 * 0.7 && f >= fRim - 1.5 && f <= fRim + 0.6) ys.push(y);
+                }
+                if (ys.length === 0) return avgLipY;
+                ys.sort((a, b) => a - b);
+                return ys[ys.length >> 1];
+            })();
+            const lipY = clamp(bedAtLip + 0.35, avgLipY - 4.0, avgLipY);
+            const lipDrop = avgLipY - lipY;
+            if (lipDrop > 0.05) {
+                const wv = waterMb.v;
+                for (let i = 0; i < wv.length; i += 3) {
+                    const y = wv[i + 1];
+                    if (y > avgLipY + 3 || y < avgLipY - 4) continue;
+                    const rx = wv[i] - midX, rz = wv[i + 2] - midZ;
+                    const f = rx * outDir.x + rz * outDir.z, l = rx * sideAxis.x + rz * sideAxis.z;
+                    const w = (1 - smoothstep(halfW0 + 0.5, halfW0 + 2.5, Math.abs(l))) * smoothstep(fRim - 8, fRim - 0.3, f);
+                    if (w > 0) wv[i + 1] = y - lipDrop * w;
+                }
             }
-            // 頂点法線は地形全体の隣接三角形から求める (選択範囲の縁でも向きが乱れない)
-            const allN = new Map();
+
+            // 1) 堰の切り欠き: 水面より高い縁の盛り上がりを、水面のすぐ下まで下げる
+            {
+                const capY = lipY - 0.35;
+                for (let i = 0; i < tvS.length; i += 3) {
+                    const y = tvS[i + 1];
+                    if (y <= capY || y > avgLipY + 3.0) continue;
+                    const rx = tvS[i] - midX, rz = tvS[i + 2] - midZ;
+                    const l = rx * sideAxis.x + rz * sideAxis.z, f = rx * outDir.x + rz * outDir.z;
+                    const w = (1 - smoothstep(maxLatS - 0.2, maxLatS + 1.3, Math.abs(l))) * smoothstep(fRim - 3.2, fRim - 0.8, f);
+                    if (w <= 0) continue;
+                    tvS[i + 1] = y + (capY - y) * w;
+                }
+            }
+
+            // 2) 面法線(外向き)と、溶接頂点ごとの平均法線 (滝口付近の三角形だけ)
+            const fN = new Float32Array(nTri * 3);
+            const nearTri = new Uint8Array(nTri);
+            const nAcc = new Map();
             for (let t = 0; t < nTri; t++) {
                 const b9 = t * 9;
                 const ax = tvS[b9], ay = tvS[b9 + 1], az = tvS[b9 + 2];
@@ -2497,171 +2505,166 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                 const nl = Math.hypot(nx, ny, nz);
                 if (nl < 1e-7) continue;
                 nx /= nl; ny /= nl; nz /= nl;
-                const cx = (ax + tvS[b9 + 3] + tvS[b9 + 6]) / 3, cy = (ay + tvS[b9 + 4] + tvS[b9 + 7]) / 3, cz = (az + tvS[b9 + 5] + tvS[b9 + 8]) / 3;
-                if (nx * (cx - islandCore.x) + ny * (cy - islandCore.y) + nz * (cz - islandCore.z) < 0) { nx = -nx; ny = -ny; nz = -nz; }
+                fN[t * 3] = nx; fN[t * 3 + 1] = ny; fN[t * 3 + 2] = nz;
+                const cy = (ay + tvS[b9 + 4] + tvS[b9 + 7]) / 3;
+                if (cy > avgLipY + 4 || cy < avgLipY - 18) continue;
+                const rx = (ax + tvS[b9 + 3] + tvS[b9 + 6]) / 3 - midX, rz = (az + tvS[b9 + 5] + tvS[b9 + 8]) / 3 - midZ;
+                if (Math.abs(rx * sideAxis.x + rz * sideAxis.z) > halfW0 + 3.5) continue;
+                if (rx * outDir.x + rz * outDir.z < fRim - 7) continue;
+                nearTri[t] = 1;
                 for (let v = 0; v < 3; v++) {
                     const k = vkey(tvS[b9 + v * 3], tvS[b9 + v * 3 + 1], tvS[b9 + v * 3 + 2]);
-                    let o = allN.get(k);
-                    if (!o) allN.set(k, o = [0, 0, 0]);
+                    let o = nAcc.get(k);
+                    if (!o) nAcc.set(k, o = [0, 0, 0]);
                     o[0] += nx; o[1] += ny; o[2] += nz;
                 }
             }
 
-            // 川の縁から「下りの方向にだけ」地形の三角形をたどり、崖肌〜島の底面を伝う水の経路にする
+            // 3) 水の皮にする三角形: 崖肌(外向きで底面ではない面) + 縁の天端 (川の水面との継ぎ目)
+            const cands = [];
+            const candByTri = new Map();
+            for (let t = 0; t < nTri; t++) {
+                if (!nearTri[t]) continue;
+                const b9 = t * 9;
+                const nx = fN[t * 3], ny = fN[t * 3 + 1], nz = fN[t * 3 + 2];
+                const cy = (tvS[b9 + 1] + tvS[b9 + 4] + tvS[b9 + 7]) / 3;
+                const rx = (tvS[b9] + tvS[b9 + 3] + tvS[b9 + 6]) / 3 - midX, rz = (tvS[b9 + 2] + tvS[b9 + 5] + tvS[b9 + 8]) / 3 - midZ;
+                const fC = rx * outDir.x + rz * outDir.z, lC = rx * sideAxis.x + rz * sideAxis.z;
+                if (cy > lipY + 0.2 || cy < lipY - 14) continue;
+                const nOut = nx * outDir.x + nz * outDir.z;
+                const isCliff = nOut > 0.3 && ny > -0.6 && ny < 0.85 && fC > fRim - 1.6;
+                const isCap = ny >= 0.5 && fC > fRim - 0.7 && fC < fRim + 1.6;
+                if (!isCliff && !isCap) continue;
+                let inside3 = true;
+                for (let v = 0; v < 3; v++) {
+                    const l = (tvS[b9 + v * 3] - midX) * sideAxis.x + (tvS[b9 + v * 3 + 2] - midZ) * sideAxis.z;
+                    if (Math.abs(l) > halfW0 + 0.4) { inside3 = false; break; }
+                }
+                if (!inside3) continue;
+                // 水面より高い頂点を含む三角形(岸の斜面など)は使わない。水面の高さへ押し下げると細長いトゲになるため
+                if (Math.max(tvS[b9 + 1], tvS[b9 + 4], tvS[b9 + 7]) > lipY + 0.5) continue;
+                const c = { t, cap: !isCliff, nx, ny, nz, cy, fC, lC, keys: null };
+                cands.push(c);
+                candByTri.set(t, c);
+            }
+            // 滝口から辺でつながっている三角形だけを使う (無関係な崖を拾わない)
+            const edgeMap = new Map();
+            for (const c of cands) {
+                const b9 = c.t * 9;
+                c.keys = [0, 1, 2].map(v => vkey(tvS[b9 + v * 3], tvS[b9 + v * 3 + 1], tvS[b9 + v * 3 + 2]));
+                for (let e = 0; e < 3; e++) {
+                    const a = c.keys[e], b = c.keys[(e + 1) % 3];
+                    const ek = a < b ? a + '|' + b : b + '|' + a;
+                    let l = edgeMap.get(ek);
+                    if (!l) edgeMap.set(ek, l = []);
+                    l.push(c);
+                }
+            }
+            const selTris = [];
             {
-                const edgeTris = new Map();
-                const triKeys = new Array(nTri);
-                for (const st of selTris) {
-                    const ks = [];
-                    for (let v = 0; v < 3; v++) ks.push(vkey(tvS[st.t * 9 + v * 3], tvS[st.t * 9 + v * 3 + 1], tvS[st.t * 9 + v * 3 + 2]));
-                    triKeys[st.t] = ks;
-                    for (let e = 0; e < 3; e++) {
-                        const a = ks[e], b = ks[(e + 1) % 3];
-                        const ek = a < b ? a + '|' + b : b + '|' + a;
-                        let l = edgeTris.get(ek);
-                        if (!l) edgeTris.set(ek, l = []);
-                        l.push(st);
-                    }
+                const seen = new Set();
+                for (const c of cands) {
+                    if (c.cap || (c.cy >= lipY - 1.8 && c.fC > fRim - 1.0)) { seen.add(c); selTris.push(c); }
                 }
-                const cenY = (st) => (tvS[st.t * 9 + 1] + tvS[st.t * 9 + 4] + tvS[st.t * 9 + 7]) / 3;
-                const visited = new Set();
-                const queue = [];
-                for (const st of selTris) {
-                    if (st.bed || cenY(st) >= bedRimY - 1.2) { visited.add(st); queue.push(st); }
-                }
-                for (let qi = 0; qi < queue.length && queue.length < 4000; qi++) {
-                    const cur = queue[qi];
-                    const cy = cenY(cur);
-                    const ks = triKeys[cur.t];
+                for (let qi = 0; qi < selTris.length && selTris.length < 3000; qi++) {
+                    const c = selTris[qi];
                     for (let e = 0; e < 3; e++) {
-                        const a = ks[e], b = ks[(e + 1) % 3];
-                        const nbs = edgeTris.get(a < b ? a + '|' + b : b + '|' + a) || [];
-                        for (const nb of nbs) {
-                            if (visited.has(nb) || nb.bed) continue;
-                            if (cenY(nb) > cy + 0.35) continue;
-                            visited.add(nb); queue.push(nb);
+                        const a = c.keys[e], b = c.keys[(e + 1) % 3];
+                        for (const nb of edgeMap.get(a < b ? a + '|' + b : b + '|' + a) || []) {
+                            if (seen.has(nb)) continue;
+                            seen.add(nb); selTris.push(nb);
                         }
                     }
                 }
-                // (地形の起伏で途切れないよう、回廊内の三角形は全て使う。BFSで届いたものは参考)
-                void visited;
             }
 
-            // 溶接頂点ごとの平均法線
-            const vInfo = (x, y, z) => {
+            // 4) 頂点を法線方向へ薄く浮かせ、縁の天端は川の水面の高さへ持ち上げて継ぎ目を無くす
+            const vInfo = new Map();
+            const skinPos = (x, y, z) => {
                 const k = vkey(x, y, z);
-                let o = vertMap.get(k);
-                if (!o) { o = { nx: 0, ny: 0, nz: 0, x, y, z }; vertMap.set(k, o); }
-                return o;
-            };
-            for (const st of selTris) {
-                for (let v = 0; v < 3; v++) {
-                    const x = tvS[st.t * 9 + v * 3], y = tvS[st.t * 9 + v * 3 + 1], z = tvS[st.t * 9 + v * 3 + 2];
-                    const o = vInfo(x, y, z);
-                    const an = allN.get(vkey(x, y, z));
-                    o.nx = an[0]; o.ny = an[1]; o.nz = an[2];
-                }
-            }
-            const skinPos = (o) => {
-                if (o.sp) return o.sp;
-                const rx = o.x - midX, rz = o.z - midZ;
+                let o = vInfo.get(k);
+                if (o) return o;
+                const an = nAcc.get(k) || [outDir.x, 0, outDir.z];
+                const nl = Math.hypot(an[0], an[1], an[2]) || 1;
+                const rx = x - midX, rz = z - midZ;
                 const f = rx * outDir.x + rz * outDir.z, l = rx * sideAxis.x + rz * sideAxis.z;
-                const d = avgLipY - o.y;
-                const hw = halfWAt(d);
-                const wl = 1 - smoothstep(hw * 0.78, hw + 0.9, Math.abs(l));
-                const nl = Math.hypot(o.nx, o.ny, o.nz) || 1;
-                const below = clamp((bedRimY - o.y) / 0.9, 0, 1);   // 川の縁より下に行くほど 1
-                const thick = 0.12 * wl;
-                const jut = 0;
-                const lift = Math.min(liftL0, Math.max(0, avgLipY - o.y)) * clamp(1 - Math.max(0, bedRimY - o.y) / 1.4, 0, 1) * wl;
-                o.sp = {
-                    x: o.x + (o.nx / nl) * thick + outDir.x * jut,
-                    y: o.y + (o.ny / nl) * thick + lift,
-                    z: o.z + (o.nz / nl) * thick + outDir.z * jut,
-                    w: wl, d, f, l
-                };
-                return o.sp;
+                const wTop = (1 - smoothstep(0.4, 1.3, lipY - y)) * smoothstep(fRim - 2.4, fRim - 1.0, f);
+                const thick = 0.13;
+                const sx = x + (an[0] / nl) * thick, sz = z + (an[2] / nl) * thick;
+                const sy0 = y + (an[1] / nl) * thick;
+                const sy = sy0 + (lipY + 0.02 - sy0) * wTop;
+                o = { x: sx, y: sy, z: sz, f: (sx - midX) * outDir.x + (sz - midZ) * outDir.z, l: (sx - midX) * sideAxis.x + (sz - midZ) * sideAxis.z, wTop };
+                vInfo.set(k, o);
+                return o;
             };
             let skinMinY = Infinity;
             const skinBottomPts = [];
-            for (const st of selTris) {
-                const P = [];
-                let maxW = 0;
-                for (let v = 0; v < 3; v++) {
-                    const o = vInfo(tvS[st.t * 9 + v * 3], tvS[st.t * 9 + v * 3 + 1], tvS[st.t * 9 + v * 3 + 2]);
-                    const sp = skinPos(o);
-                    P.push(sp);
-                    if (sp.w > maxW) maxW = sp.w;
-                }
-                if (maxW < 0.05) continue;
-                const dMid = Math.max(0, st.dC);
+            for (const c of selTris) {
+                const b9 = c.t * 9;
+                const P = [0, 1, 2].map(v => skinPos(tvS[b9 + v * 3], tvS[b9 + v * 3 + 1], tvS[b9 + v * 3 + 2]));
+                const dMid = Math.max(0, lipY - c.cy);
                 const foam = lerpColor(waterCol, foamTint, clamp(dMid / 22 * 0.65, 0, 1));
                 const col = shadeColor(foam, rng.next() * 0.06 - 0.03);
                 waterMb.tri({ x: P[0].x, y: P[0].y, z: P[0].z }, { x: P[1].x, y: P[1].y, z: P[1].z }, { x: P[2].x, y: P[2].y, z: P[2].z },
-                    col, col, col, { x: st.nx, y: st.ny, z: st.nz }, 1.0);
+                    col, col, col, { x: c.nx, y: c.ny, z: c.nz }, 1.0);
                 waterVertCount += 3;
-                if (!st.bed) {
+                if (!c.cap) {
                     for (const q of P) {
-                        if (q.w > 0.3) {
-                            if (q.y < skinMinY) skinMinY = q.y;
-                            skinBottomPts.push(q);
-                        }
+                        if (q.y < skinMinY) skinMinY = q.y;
+                        skinBottomPts.push(q);
                     }
                 }
             }
 
-            // ---- 崖の下端から先は、薄い水の幕として真下へ落とす ----
-            let yTop = Number.isFinite(skinMinY) ? skinMinY : (avgLipY - 1.0);
-            let fB = fRim + 0.3, lB = 0, lSpread = 0.6, dB = Math.max(0, avgLipY - yTop);
-            if (skinBottomPts.length > 0) {
-                const near = skinBottomPts.filter(q => q.y < yTop + 0.9);
-                fB = near.reduce((a, q) => a + q.f, 0) / near.length;
-                lB = near.reduce((a, q) => a + q.l, 0) / near.length;
-                let lo = Infinity, hi = -Infinity;
-                for (const q of near) { lo = Math.min(lo, q.l); hi = Math.max(hi, q.l); }
-                lSpread = clamp((hi - lo) * 0.5, 0.3, 1.2);
-            }
-            const wSb = lerpNum(1.0, endWidthRatio, smoothstep(2.0, 22, dB));
-            const ySheet = [yTop + 0.5, yTop - 0.5, yTop - 1.5, yTop - 2.8, yTop - 4.5, yTop - 7.0];
-            for (const ey of extYs) { const ya = ey + oy; if (ya < ySheet[ySheet.length - 1] - 6) ySheet.push(ya); }
-            const nS = ySheet.length;
-            const sFront = [], sBack = [];
-            // 上端の列は水の皮の最下端の頂点をそのまま使い、皮から滑らかに細い筋へ移行する
+            // ---- 皮の下端から先は、勢いで少しだけ外へ出ながら細い水の幕になって真下へ落ちる ----
+            const hasSkin = skinBottomPts.length > 0;
+            const yTop = hasSkin ? skinMinY : (lipY - 0.3);
+            const dB = Math.max(0, avgLipY - yTop);
             let topPts = [];
-            if (skinBottomPts.length > 0) {
-                const cand = skinBottomPts.filter(q => q.y < yTop + 1.2).sort((p1, p2) => p1.l - p2.l);
+            if (hasSkin) {
+                const cand = skinBottomPts.filter(q => q.y < yTop + 1.0).sort((p1, p2) => p1.l - p2.l);
                 for (const q of cand) {
-                    if (topPts.length === 0 || q.l - topPts[topPts.length - 1].l > 0.45) topPts.push(q);
+                    if (topPts.length === 0 || q.l - topPts[topPts.length - 1].l > 0.5) topPts.push(q);
                 }
                 while (topPts.length > 6) topPts = topPts.filter((_, i) => i % 2 === 0 || i === topPts.length - 1);
             }
             if (topPts.length < 2) {
-                topPts = [-0.5, 0.5].map(dl => ({ x: midX + outDir.x * fB + sideAxis.x * (lB + dl), y: yTop, z: midZ + outDir.z * fB + sideAxis.z * (lB + dl), l: lB + dl, f: fB }));
+                const fT = fRim + 0.15;
+                topPts = [-0.5, 0.5].map(dl => ({ x: midX + outDir.x * fT + sideAxis.x * dl, y: yTop, z: midZ + outDir.z * fT + sideAxis.z * dl, l: dl, f: fT }));
             }
+            const lB = topPts.reduce((a, q) => a + q.l, 0) / topPts.length;
+            const fTop = topPts.reduce((a, q) => a + q.f, 0) / topPts.length;
+            const ySheet = [yTop, yTop - 0.8, yTop - 1.9, yTop - 3.5, yTop - 6.0, yTop - 10.0];
+            for (const ey of extYs) { const ya = ey + oy; if (ya < ySheet[ySheet.length - 1] - 6) ySheet.push(ya); }
+            const nS = ySheet.length;
             const sCols = topPts.length - 1;
-            // 各行で、その高さ・横位置にある地形(崖の張り出し/底面)より外側に幕を置く。内側に埋まらないよう、外向きにしか動かさない。
-            const rowF = [];
+            // 各行の外向きのずれ: 勢いによる飛び出し(少しだけ)。下に岩が張り出している場合は、その外側まで出す(上限あり)
+            const rowAdd = [];
             {
-                let fPrev = fB;
                 const lw = Math.max(...topPts.map(q => Math.abs(q.l - lB))) + 1.2;
+                let prev = 0;
                 for (let k = 0; k < nS; k++) {
+                    const h = Math.max(0, yTop - ySheet[k]);
+                    const jut = 1.1 * (1 - Math.exp(-h / 2.5));
                     let m = -Infinity;
-                    for (let i = 0; i < tvS.length; i += 3) {
-                        const y = tvS[i + 1];
-                        if (Math.abs(y - ySheet[k]) > 2.2) continue;
-                        const rx = tvS[i] - midX, rz = tvS[i + 2] - midZ;
-                        const l = rx * sideAxis.x + rz * sideAxis.z;
-                        if (Math.abs(l - lB) > lw) continue;
-                        const f = rx * outDir.x + rz * outDir.z;
-                        if (f > fB + 2.0) continue;   // 別の張り出しは無視
-                        if (f > m) m = f;
+                    if (k > 0) {
+                        for (let i = 0; i < tvS.length; i += 3) {
+                            if (Math.abs(tvS[i + 1] - ySheet[k]) > 2.2) continue;
+                            const rx = tvS[i] - midX, rz = tvS[i + 2] - midZ;
+                            if (Math.abs(rx * sideAxis.x + rz * sideAxis.z - lB) > lw) continue;
+                            const f = rx * outDir.x + rz * outDir.z;
+                            if (f > fTop + 2.0) continue;
+                            if (f > m) m = f;
+                        }
                     }
-                    fPrev = Math.min(fB + 1.2, Math.max(fPrev, m + 0.3));
-                    rowF.push(fPrev);
+                    const need = Number.isFinite(m) ? Math.min(2.0, m + 0.3 - fTop) : 0;
+                    prev = Math.max(prev, jut, need);
+                    rowAdd.push(prev);
                 }
             }
-            const colJy = topPts.map(() => rng.next() * 0.8 - 0.4);
+            const colJy = topPts.map(() => rng.next() * 0.5 - 0.25);
             const colJl = topPts.map(() => rng.next() * 0.2 - 0.1);
+            const sFront = [], sBack = [];
             for (let k = 0; k < nS; k++) {
                 const dk = avgLipY - ySheet[k];
                 const t = smoothstep(0, 14, dk - dB);
@@ -2670,8 +2673,8 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                 for (let j = 0; j < topPts.length; j++) {
                     const q = topPts[j];
                     const nar = lerpNum(1.0, 0.4, t);
-                    const l = lB + (q.l - lB) * nar * Math.min(1, 0.55 + 0.45 * (k === 0 ? 1 : 0.6)) + colJl[j] * Math.min(1, k);
-                    const f = k === 0 ? q.f : lerpNum(q.f, fB, Math.min(1, k * 0.6)) + 0.03 + Math.max(0, rowF[k] - fB);
+                    const l = lB + (q.l - lB) * nar + colJl[j] * Math.min(1, k) + (k > 0 && k < nS - 1 ? (rng.next() - 0.5) * 0.22 * Math.min(1, nar + 0.3) : 0);
+                    const f = q.f + rowAdd[k];
                     const y = k === 0 ? q.y : ySheet[k] + colJy[j] * (k < nS - 1 ? 1 : 0);
                     fr.push({ x: midX + outDir.x * f + sideAxis.x * l, y, z: midZ + outDir.z * f + sideAxis.z * l });
                     bk.push({ x: midX + outDir.x * (f - thick) + sideAxis.x * l, y, z: midZ + outDir.z * (f - thick) + sideAxis.z * l });
