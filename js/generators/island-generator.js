@@ -2653,9 +2653,10 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                         const l = rx * sideAxis.x + rz * sideAxis.z;
                         if (Math.abs(l - lB) > lw) continue;
                         const f = rx * outDir.x + rz * outDir.z;
+                        if (f > fB + 2.0) continue;   // 別の張り出しは無視
                         if (f > m) m = f;
                     }
-                    fPrev = Math.max(fPrev, m + 0.3);
+                    fPrev = Math.min(fB + 1.2, Math.max(fPrev, m + 0.3));
                     rowF.push(fPrev);
                 }
             }
