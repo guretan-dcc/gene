@@ -2622,7 +2622,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                 lSpread = clamp((hi - lo) * 0.5, 0.3, 1.2);
             }
             const wSb = lerpNum(1.0, endWidthRatio, smoothstep(2.0, 22, dB));
-            const ySheet = [yTop + 0.5, yTop - 0.9, yTop - 3.0, yTop - 7.0];
+            const ySheet = [yTop + 0.5, yTop - 0.5, yTop - 1.5, yTop - 2.8, yTop - 4.5, yTop - 7.0];
             for (const ey of extYs) { const ya = ey + oy; if (ya < ySheet[ySheet.length - 1] - 6) ySheet.push(ya); }
             const nS = ySheet.length;
             const sFront = [], sBack = [];
@@ -2639,6 +2639,26 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                 topPts = [-0.5, 0.5].map(dl => ({ x: midX + outDir.x * fB + sideAxis.x * (lB + dl), y: yTop, z: midZ + outDir.z * fB + sideAxis.z * (lB + dl), l: lB + dl, f: fB }));
             }
             const sCols = topPts.length - 1;
+            // 各行で、その高さ・横位置にある地形(崖の張り出し/底面)より外側に幕を置く。内側に埋まらないよう、外向きにしか動かさない。
+            const rowF = [];
+            {
+                let fPrev = fB;
+                const lw = Math.max(...topPts.map(q => Math.abs(q.l - lB))) + 1.2;
+                for (let k = 0; k < nS; k++) {
+                    let m = -Infinity;
+                    for (let i = 0; i < tvS.length; i += 3) {
+                        const y = tvS[i + 1];
+                        if (Math.abs(y - ySheet[k]) > 2.2) continue;
+                        const rx = tvS[i] - midX, rz = tvS[i + 2] - midZ;
+                        const l = rx * sideAxis.x + rz * sideAxis.z;
+                        if (Math.abs(l - lB) > lw) continue;
+                        const f = rx * outDir.x + rz * outDir.z;
+                        if (f > m) m = f;
+                    }
+                    fPrev = Math.max(fPrev, m + 0.3);
+                    rowF.push(fPrev);
+                }
+            }
             const colJy = topPts.map(() => rng.next() * 0.8 - 0.4);
             const colJl = topPts.map(() => rng.next() * 0.2 - 0.1);
             for (let k = 0; k < nS; k++) {
@@ -2650,7 +2670,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                     const q = topPts[j];
                     const nar = lerpNum(1.0, 0.4, t);
                     const l = lB + (q.l - lB) * nar * Math.min(1, 0.55 + 0.45 * (k === 0 ? 1 : 0.6)) + colJl[j] * Math.min(1, k);
-                    const f = lerpNum(q.f, fB, Math.min(1, k * 0.6)) + 0.03 * Math.min(1, k);
+                    const f = k === 0 ? q.f : lerpNum(q.f, fB, Math.min(1, k * 0.6)) + 0.03 + Math.max(0, rowF[k] - fB);
                     const y = k === 0 ? q.y : ySheet[k] + colJy[j] * (k < nS - 1 ? 1 : 0);
                     fr.push({ x: midX + outDir.x * f + sideAxis.x * l, y, z: midZ + outDir.z * f + sideAxis.z * l });
                     bk.push({ x: midX + outDir.x * (f - thick) + sideAxis.x * l, y, z: midZ + outDir.z * (f - thick) + sideAxis.z * l });
