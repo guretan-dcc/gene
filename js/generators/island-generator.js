@@ -2483,6 +2483,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                 const isBed = false;   // 川床は川の水面メッシュがそのまま覆うので、水の皮は崖から始める
                 const isCliff = ny > -0.97 && ny < 0.8 && cy <= avgLipY + 0.15 && fC > fRim - 7 && dC < 9 && (nOut > -0.1 || ny < -0.2);
                 if (!isBed && !isCliff) continue;
+                if (Math.max(ay, tvS[b9 + 4], tvS[b9 + 7]) > bedRimY + 0.3) continue;   // 川岸の壁・縁の頂点を含む三角形は使わない(トゲ防止)
                 selTris.push({ t, nx, ny, nz, dC, bed: isBed });
             }
             // 頂点法線は地形全体の隣接三角形から求める (選択範囲の縁でも向きが乱れない)
@@ -2570,9 +2571,9 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                 const wl = 1 - smoothstep(hw * 0.78, hw + 0.9, Math.abs(l));
                 const nl = Math.hypot(o.nx, o.ny, o.nz) || 1;
                 const below = clamp((bedRimY - o.y) / 0.9, 0, 1);   // 川の縁より下に行くほど 1
-                const thick = (0.18 * below - 0.03) * wl;
-                const jut = 0.35 * Math.exp(-Math.max(0, d) / 2.2) * clamp((bedRimY - o.y) / 0.7, 0, 1) * wl;
-                const lift = liftL0 * clamp(1 - Math.max(0, bedRimY - o.y) / 1.4, 0, 1) * wl;
+                const thick = 0.12 * wl;
+                const jut = 0;
+                const lift = 0;
                 o.sp = {
                     x: o.x + (o.nx / nl) * thick + outDir.x * jut,
                     y: o.y + (o.ny / nl) * thick + lift,
