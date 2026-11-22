@@ -2486,7 +2486,9 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                 }
                 for (let j = 0; j <= cols; j++) {
                     ys.push(sp.kind === 'abs' ? sp.y : (sp.kind === 'd' ? y0[j] - sp.d : y0[j]));
-                    ls.push(lat0[j] * wS);
+                    // 縁〜落ち始めは川岸へ少し食い込ませ、水と岸の間に砂色の隙間が見えないようにする
+                    const sideExtra = (sp.kind === 'rim') ? 0 : 0.38 * (1 - smoothstep(0, 6, dd));
+                    ls.push(lat0[j] * wS + Math.sign(lat0[j]) * sideExtra);
                 }
                 rowY.push(ys); rowLat.push(ls); rowW.push(wS); rowD.push(dd);
             }
@@ -2552,7 +2554,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
             for (let k = 0; k < nRows; k++) {
                 const row = [];
                 const dEff = rowD[k];
-                const thickBase = k <= 1 ? 0.0 : lerpNum(0.30, 0.85, smoothstep(0, 5, dEff)) * lerpNum(0.65, 1.0, rowW[k]);
+                const thickBase = k <= 1 ? 0.0 : lerpNum(0.34, 0.2, smoothstep(0, 8, dEff));
                 for (let j = 0; j <= cols; j++) {
                     const kp = Math.max(1, k - 1), kn = Math.min(nRows - 1, k + 1);
                     const dfwd = fwdRows[kn][j] - fwdRows[kp][j];
