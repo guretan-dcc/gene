@@ -2397,6 +2397,34 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
             // 川幅に合わせて滝口を始め、落下するにつれて削られた筋のように自然に細く絞る
             const endWidthRatio = lerpNum(0.36, 0.54, clamp(mouthWidth / Math.max(1, riverWidth * 1.4), 0, 1));
 
+            // ---- 滝口の地形整形: 川の流路が島の外へ張り出した「岩の棚」を削り、滝口の下を自然な崖肌にする ----
+            {
+                const tvv = terrainMb.v;
+                let maxLat = 0;
+                for (let j = 0; j <= cols; j++) maxLat = Math.max(maxLat, Math.abs(lat0[j]));
+                const refFwdAt = (l) => {
+                    let bj = 0, bd = Infinity;
+                    for (let j = 0; j <= cols; j++) { const d = Math.abs(lat0[j] - l); if (d < bd) { bd = d; bj = j; } }
+                    return fwd0[bj];
+                };
+                const trimTop = avgLipY - 0.25;
+                for (let i = 0; i < tvv.length; i += 3) {
+                    const wy = tvv[i + 1];
+                    if (wy > trimTop || wy < avgLipY - 34) continue;
+                    const wx = tvv[i] - midX, wz = tvv[i + 2] - midZ;
+                    const l = wx * sideAxis.x + wz * sideAxis.z;
+                    const wl = 1 - smoothstep(maxLat + 0.6, maxLat + 3.8, Math.abs(l));
+                    if (wl <= 0) continue;
+                    const f = wx * outDir.x + wz * outDir.z;
+                    const fRef = refFwdAt(l) + 0.1;
+                    if (f <= fRef) continue;
+                    const wd = 1 - smoothstep(14, 32, avgLipY - wy);
+                    const dF = (f - fRef) * wl * wd;
+                    tvv[i] -= outDir.x * dF;
+                    tvv[i + 2] -= outDir.z * dF;
+                }
+            }
+
             // ---- 滝の形状 ----
             // 方針: (1) 川の水面を地形の最も外側(岩の舌の先端)まで延ばして「水が縁まで満ちている」状態にし、
             //       (2) そこから先は地形に刺さらないよう余白(CLEAR)を取りつつ、外側へ戻らない(単調な)曲線で落とす。
@@ -2501,11 +2529,13 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                     if (k === 0) { row.push(fwd0[j]); continue; }
                     if (k === 1) { row.push(lipFwd[j]); continue; }
                     const sp = rowSpec[k];
-                    // 縁を 1/4 円で丸く越える(縁では水平→落ちるにつれ垂直)。直角の折れ目を作らない
-                    const RC = 2.4;
+                    // 勢いで少しだけ飛び出し(1/4円で縁を越える)、落ちるにつれて崖肌へ寄っていく
+                    const RC = 1.3, JUT_END = 0.3;
                     const arch = sp.kind === 'd'
-                        ? RC * Math.sqrt(Math.max(0, 1 - (1 - Math.min(sp.d, RC) / RC) ** 2))
-                        : RC;
+                        ? (sp.d < RC
+                            ? RC * Math.sqrt(Math.max(0, 1 - (1 - sp.d / RC) ** 2))
+                            : JUT_END + (RC - JUT_END) * Math.exp(-(sp.d - RC) / 5))
+                        : JUT_END;
                     let need = null;
                     const yc = rowY[k][j];
                     const yPrev = rowY[k - 1][j], yNext = k + 1 < nRows ? rowY[k + 1][j] : yc - 2;
@@ -2522,9 +2552,6 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
             // 前方位置: 外側へ戻らない(単調)・横方向になめらか・必要位置を下回らない
             let fwdRows = reqF.map(r => r.slice());
             for (let pass = 0; pass < 3; pass++) {
-                for (let k = 2; k < nRows; k++) {
-                    for (let j = 0; j <= cols; j++) fwdRows[k][j] = Math.max(fwdRows[k][j], fwdRows[k - 1][j]);
-                }
                 const sm = fwdRows.map(r => r.slice());
                 for (let k = 2; k < nRows; k++) {
                     for (let j = 1; j < cols; j++) sm[k][j] = (fwdRows[k][j - 1] + 2 * fwdRows[k][j] + fwdRows[k][j + 1]) / 4;
@@ -2533,9 +2560,6 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                     for (let j = 0; j <= cols; j++) sm[k][j] = Math.max(sm[k][j], reqF[k][j]);
                 }
                 fwdRows = sm;
-            }
-            for (let k = 2; k < nRows; k++) {
-                for (let j = 0; j <= cols; j++) fwdRows[k][j] = Math.max(fwdRows[k][j], fwdRows[k - 1][j]);
             }
 
             const front = [], back = [];
