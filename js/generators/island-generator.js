@@ -1786,6 +1786,11 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
         ];
 
         const cragAmp = 0.45 + 0.55 * cragStrength;
+        const FLOOR_WAVE_AMP = 0.50;  // 床のうねり(上下)の最大振れ幅 [m]
+        const FLOOR_TILT_AMP = 0.38;  // 床の左右の傾き(片側が高い)の最大量 [m]
+        // 入口と出口の高低差が大きい急な坑道は、元の坂にうねりが重なって急になり過ぎないよう控えめにする
+        const floorCalm = 1.0 - 0.85 * smoothstep(0.25, 0.55, Math.abs(centerB.y - centerA.y) / Math.max(len, 1.0));
+        const floorPhase = [cr.next(), cr.next(), cr.next()]; // うねりの位相(トンネルごとに変える)
         const sampleAxisFrame = (t) => {
             const tc = clamp(t, 0.0, 1.0);
             const bend = Math.sin(tc * Math.PI) * curve * len * 0.22;
@@ -1804,6 +1809,17 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
             const fr = sampleAxisFrame(t);
             const sectionScaleW = 1.0 + (perlin.fbm((fr.cx - ox) / half * 2.5, (fr.cz - oz) / half * 2.5, 2, 1.9, 2) - 0.5) * 0.46 * cragAmp;
             const sectionScaleH = 1.0 + (perlin.fbm((fr.cx - ox) / half * 2.5 + 4.1, (fr.cz - oz) / half * 2.5 - 3.3, 3, 2.0, 2) - 0.5) * 0.40 * cragAmp;
+
+            // 床全体の大きなうねり(歩く線に沿って緩やかに上下)と左右の傾き(片側が高い)。
+            // 両端は坑口の床へ繋がるので0へ絞る。うねりで床が上がった分は壁・天井も持ち上げて頭上の高さを保つ
+            const endTaper = smoothstep(0.06, 0.26, Math.min(t, 1.0 - t));
+            const sAlong = t * len;
+            const TAU = Math.PI * 2.0;
+            const fwN = 0.70 * Math.sin(TAU * (sAlong / 9.5 + floorPhase[0])) + 0.30 * Math.sin(TAU * (sAlong / 7.5 + floorPhase[1]));
+            const ftN = Math.sin(TAU * (sAlong / 12.0 + floorPhase[2]));
+            const floorWave = fwN * FLOOR_WAVE_AMP * floorCalm * cragAmp * endTaper;
+            const floorTilt = ftN * FLOOR_TILT_AMP * cragAmp * endTaper;
+            const floorUp = Math.max(0.0, floorWave + Math.abs(floorTilt));
 
             let isExposed = false;
             const ring = [];
@@ -1824,6 +1840,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                     u = sign < 0 ? Math.min(u, -halfW * 0.66) : Math.max(u, halfW * 0.66);
                     v += (nV * 0.22 + cr.signed() * 0.15) * cragAmp;
                     v = clamp(v, -0.10, 0.48);
+                    v += floorWave + (k === 0 ? floorTilt : -floorTilt);
                     if (allowAlongJitter) alongJitter = (nU * 0.14 + cr.signed() * 0.16) * cellSize * cragAmp;
                 } else if (k === 1 || k === 2) {
                     // 床の中央2頂点：歩きやすさを損なわない範囲で、フラットシェーディングの凹凸が明確に出るゴツゴツ岩床にする
@@ -1833,6 +1850,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                     u = sign < 0 ? clamp(u, -halfW * 0.58, -halfW * 0.10) : clamp(u, halfW * 0.10, halfW * 0.58);
                     v = (nV * 0.28 + cr.signed() * 0.20 + altSign * 0.09) * cragAmp;
                     v = clamp(v, -0.26, 0.36);
+                    v += floorWave + (k === 1 ? floorTilt : -floorTilt) * 0.6;
                     if (allowAlongJitter) alongJitter = (nV * 0.16 + cr.signed() * 0.20) * cellSize * cragAmp;
                 } else {
                     // 側壁・天井：山肌と同じ粗さでゴツゴツと張り出し・窪み・前後ジッターを付与
@@ -1845,6 +1863,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                     const minV = (k === 4 || k === 7) ? caveH * 0.34 : caveH * 0.80;
                     const maxV = (k === 4 || k === 7) ? caveH * 0.84 : caveH * 1.38;
                     v = clamp(v, minV, maxV);
+                    v += floorUp * ((k === 4 || k === 7) ? 0.9 : 0.7);
 
                     if (allowAlongJitter) alongJitter = (nU * 0.16 + cr.signed() * 0.18) * cellSize * cragAmp;
                 }
@@ -2048,6 +2067,22 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                 const base10 = getRingVertColor(s + 1, k, isFloor);
                 const base11 = getRingVertColor(s + 1, kNext, isFloor);
                 const alpha = isFloor ? 1.0 : 0.0;
+
+                if (isFloor) {
+                    // 床は1マスを4枚の三角形に割り、中心点をわずかに上下させる。
+                    // 2枚割りだと大きな平面に見えるので、向きの違う小さな面を増やして岩の床らしくする(四辺は共有のまま=隙間なし)
+                    const cx = (p00.x + p01.x + p10.x + p11.x) * 0.25;
+                    const cz = (p00.z + p01.z + p10.z + p11.z) * 0.25;
+                    const cy = (p00.y + p01.y + p10.y + p11.y) * 0.25 + cr.range(-0.15, 0.17) * cragAmp;
+                    const pc = { x: cx, y: cy, z: cz };
+                    const baseC = lerpColor(lerpColor(base00, base01, 0.5), lerpColor(base10, base11, 0.5), 0.5);
+                    const jC = cr.range(-jAmp, jAmp);
+                    terrainMb.emit(p00, p01, pc, shadeColor(base00, jA), shadeColor(base01, jA), shadeColor(baseC, jA), alpha);
+                    terrainMb.emit(p01, p11, pc, shadeColor(base01, jB), shadeColor(base11, jB), shadeColor(baseC, jB), alpha);
+                    terrainMb.emit(p11, p10, pc, shadeColor(base11, jC), shadeColor(base10, jC), shadeColor(baseC, jC), alpha);
+                    terrainMb.emit(p10, p00, pc, shadeColor(base10, jA * 0.6 - jB * 0.4), shadeColor(base00, jA * 0.6 - jB * 0.4), shadeColor(baseC, jA * 0.6 - jB * 0.4), alpha);
+                    continue;
+                }
 
                 if (((s + k) & 1) === 0) {
                     terrainMb.emit(p00, p01, p11, shadeColor(base00, jA), shadeColor(base01, jA), shadeColor(base11, jA), alpha);
