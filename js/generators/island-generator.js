@@ -2430,12 +2430,45 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
             };
             const skinHint = nSkin;
             const outerIdx = new Set();
+            // 縁の角を丸める: 水面→崖の「上端の頂点→下端の頂点」の辺の中点に、水面を保ったまま滑らかに折れ曲がる点を足す
+            //  (水が縁を越えて勢いよく曲がり落ちる断面)。辺ごとに共有するので隣の三角形と割れない
+            const SKIN_S0 = 0.15; // 水面が縁へ入る向きの勾配
+            const midCache = new Map();
+            const skinMid = (a, o) => {
+                const key = a + '_' + o;
+                let m = midCache.get(key);
+                if (m) return m;
+                const A = skinPt(a), B = skinPt(o);
+                const L = Math.hypot(B.x - A.x, B.z - A.z);
+                const lin = (A.y + B.y) * 0.5;
+                const ym = Math.min(A.y, Math.max(lin, A.y + 0.25 * (B.y - A.y) - 0.25 * SKIN_S0 * L));
+                m = { p: { x: (A.x + B.x) * 0.5, y: ym, z: (A.z + B.z) * 0.5 }, c: lerpColor(skinColC(a), skinColC(o), 0.5) };
+                midCache.set(key, m);
+                return m;
+            };
+            const emitSkin = (p0, p1, p2, c0, c1, c2) => {
+                waterMb.tri(p0, p1, p2, c0, c1, c2, skinHint, 1.0);
+                waterVertCount += 3;
+            };
             // @hook:skin-begin
             for (const tr of skinTris) {
                 const v = tr.v;
-                waterMb.tri(skinPt(v[0]), skinPt(v[1]), skinPt(v[2]), skinColC(v[0]), skinColC(v[1]), skinColC(v[2]), skinHint, 1.0);
-                waterVertCount += 3;
                 for (const o of tr.outs) outerIdx.add(o);
+                if (tr.ins.length === 1 && tr.outs.length === 2) {
+                    const a = tr.ins[0], [o1, o2] = tr.outs;
+                    const m1 = skinMid(a, o1), m2 = skinMid(a, o2);
+                    emitSkin(skinPt(a), m1.p, m2.p, skinColC(a), m1.c, m2.c);
+                    emitSkin(m1.p, skinPt(o1), skinPt(o2), m1.c, skinColC(o1), skinColC(o2));
+                    emitSkin(m1.p, skinPt(o2), m2.p, m1.c, skinColC(o2), m2.c);
+                } else if (tr.ins.length === 2 && tr.outs.length === 1) {
+                    const [a1, a2] = tr.ins, o = tr.outs[0];
+                    const m1 = skinMid(a1, o), m2 = skinMid(a2, o);
+                    emitSkin(skinPt(a1), skinPt(a2), m2.p, skinColC(a1), skinColC(a2), m2.c);
+                    emitSkin(skinPt(a1), m2.p, m1.p, skinColC(a1), m2.c, m1.c);
+                    emitSkin(m1.p, m2.p, skinPt(o), m1.c, m2.c, skinColC(o));
+                } else {
+                    emitSkin(skinPt(v[0]), skinPt(v[1]), skinPt(v[2]), skinColC(v[0]), skinColC(v[1]), skinColC(v[2]));
+                }
             }
 
             // ---- 皮の下端(外周リングの頂点)から、細い水の幕が勢いで少しだけ外へ出ながら真下へ落ちる ----

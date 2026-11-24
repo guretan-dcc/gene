@@ -15,6 +15,8 @@ const MAX_RIVER_AMOUNT = 2.0;
 // 河口(島の縁)での水深と土手の高さ。縁へ向かって、通常の水深・土手高からここまで浅く均す。
 const MOUTH_WATER_DEPTH = 1.0;
 const MOUTH_BANK_HEIGHT = 0.4;
+// 河口へ向かって水面をわずかに下げる量(流れが縁で勢いづいて見える)。水面の勾配は縁に近いほど急になる。
+const MOUTH_DRAWDOWN = 0.8;
 
 // Unity版 `ComputeRiverThreshold(riverAmount)`
 export function computeRiverThreshold(riverAmount) {
@@ -805,7 +807,7 @@ export function carveRivers(c) {
 
         // 3.5. 河口の浅瀬: 島の縁(河口)に近づくほど川底を水面近くまで上げ、土手も低くする。
         //      川底が水面より何mも低いまま縁に着くと、水面が岩の壁に挟まれた細い先端になり、滝へ自然に繋がらない。
-        //      水面の高さ(centerWaterY)は変えず、地形のほうを河口へ向かって浅く均す(滝口の水が縁まで届く)。
+        //      水面はほとんど変えず(下記のごくわずかな下げのみ)、地形のほうを河口へ向かって浅く均す(滝口の水が縁まで届く)。
         const mouthDist = new Float32Array(n).fill(Infinity);
         const mouthLen = Math.max(cellSize * 4.5, 9);
         {
@@ -832,6 +834,13 @@ export function carveRivers(c) {
                     const nd = key + dist2(xz[u], xz[nb]);
                     if (nd < mouthDist[nb] && nd < mouthLen) { mouthDist[nb] = nd; mq.push(nd, nb); }
                 }
+            }
+            // 水面は縁へ向かってごくわずかに下げる(縁でいきなり直角に折れず、勢いをつけて流れ出す)
+            const drawLen = Math.max(cellSize * 3.5, 7);
+            for (let i = 0; i < n; i++) {
+                if (!(mouthDist[i] < drawLen)) continue;
+                const u = 1 - Smooth(0, drawLen, mouthDist[i]);
+                centerWaterY[i] = Math.max(0.5, centerWaterY[i] - MOUTH_DRAWDOWN * u * u);
             }
             for (let i = 0; i < n; i++) {
                 if (!(mouthDist[i] < mouthLen)) continue;
