@@ -13,8 +13,8 @@ const DISABLED_RIVER_THRESHOLD = 1000000;
 const RIVER_SUB_UNIT_EXP = 4.9;
 const MAX_RIVER_AMOUNT = 2.0;
 // 河口(島の縁)での水深と土手の高さ。縁へ向かって、通常の水深・土手高からここまで浅く均す。
-const MOUTH_WATER_DEPTH = 0.45;
-const MOUTH_BANK_HEIGHT = 0.12;
+const MOUTH_WATER_DEPTH = 1.0;
+const MOUTH_BANK_HEIGHT = 0.4;
 
 // Unity版 `ComputeRiverThreshold(riverAmount)`
 export function computeRiverThreshold(riverAmount) {
@@ -836,8 +836,11 @@ export function carveRivers(c) {
             for (let i = 0; i < n; i++) {
                 if (!(mouthDist[i] < mouthLen)) continue;
                 const mt = Smooth(0, mouthLen, mouthDist[i]);
-                centerWaterDepth[i] = MOUTH_WATER_DEPTH + (centerWaterDepth[i] - MOUTH_WATER_DEPTH) * mt;
-                centerBankHeight[i] = MOUTH_BANK_HEIGHT + (centerBankHeight[i] - MOUTH_BANK_HEIGHT) * mt;
+                // もともと浅い・低い川は、河口で逆に深く・高くしない
+                const dm = Math.min(centerWaterDepth[i], MOUTH_WATER_DEPTH);
+                const bm = Math.min(centerBankHeight[i], MOUTH_BANK_HEIGHT);
+                centerWaterDepth[i] = dm + (centerWaterDepth[i] - dm) * mt;
+                centerBankHeight[i] = bm + (centerBankHeight[i] - bm) * mt;
             }
         }
 
@@ -961,7 +964,9 @@ export function carveRivers(c) {
                     const src = nearestCenter[nb];
                     if (src >= 0 && mouthDist[src] < mouthLen) ease = Math.min(ease, Smooth(0, mouthLen, mouthDist[src]));
                 }
-                const rimLift = MOUTH_BANK_HEIGHT + (Math.min(1.2, riverBankDepth * 0.45) - MOUTH_BANK_HEIGHT) * ease;
+                const fullLift = Math.min(1.2, riverBankDepth * 0.45);
+                const mouthLift = Math.min(fullLift, MOUTH_BANK_HEIGHT);
+                const rimLift = mouthLift + (fullLift - mouthLift) * ease;
                 const minRim = riverW[b] + rimLift;
                 if (H[b] < minRim) H[b] = minRim;
             }
