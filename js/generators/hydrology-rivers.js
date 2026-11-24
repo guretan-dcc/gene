@@ -12,6 +12,9 @@ const MAX_RIVER_THRESHOLD = 15000;
 const DISABLED_RIVER_THRESHOLD = 1000000;
 const RIVER_SUB_UNIT_EXP = 4.9;
 const MAX_RIVER_AMOUNT = 2.0;
+// 河口(島の縁)での水深と土手の高さ。縁へ向かって、通常の水深・土手高からここまで浅く均す。
+const MOUTH_WATER_DEPTH = 0.45;
+const MOUTH_BANK_HEIGHT = 0.12;
 
 // Unity版 `ComputeRiverThreshold(riverAmount)`
 export function computeRiverThreshold(riverAmount) {
@@ -800,6 +803,44 @@ export function carveRivers(c) {
             if (dn >= 0 && centerRiver[dn]) minUpW[dn] = Math.min(minUpW[dn], centerWaterY[r]);
         }
 
+        // 3.5. 河口の浅瀬: 島の縁(河口)に近づくほど川底を水面近くまで上げ、土手も低くする。
+        //      川底が水面より何mも低いまま縁に着くと、水面が岩の壁に挟まれた細い先端になり、滝へ自然に繋がらない。
+        //      水面の高さ(centerWaterY)は変えず、地形のほうを河口へ向かって浅く均す(滝口の水が縁まで届く)。
+        const mouthDist = new Float32Array(n).fill(Infinity);
+        const mouthLen = Math.max(cellSize * 4.5, 9);
+        {
+            const mq = new MinHeap();
+            for (let i = 0; i < n; i++) {
+                if (!centerRiver[i] || !inside[i]) continue;
+                const d = down[i];
+                if (d >= 0 && centerRiver[d]) continue;
+                let nearOut = false;
+                for (let k = 0; k < 6; k++) {
+                    const nb = Nb(i, k);
+                    if (nb >= 0 && !inside[nb]) { nearOut = true; break; }
+                }
+                if (!nearOut) continue;
+                mouthDist[i] = 0;
+                mq.push(0, i);
+            }
+            while (mq.size > 0) {
+                const { key, val: u } = mq.pop();
+                if (key > mouthDist[u] + 1e-4) continue;
+                for (let k = 0; k < 6; k++) {
+                    const nb = Nb(u, k);
+                    if (nb < 0 || !centerRiver[nb] || !inside[nb]) continue;
+                    const nd = key + dist2(xz[u], xz[nb]);
+                    if (nd < mouthDist[nb] && nd < mouthLen) { mouthDist[nb] = nd; mq.push(nd, nb); }
+                }
+            }
+            for (let i = 0; i < n; i++) {
+                if (!(mouthDist[i] < mouthLen)) continue;
+                const mt = Smooth(0, mouthLen, mouthDist[i]);
+                centerWaterDepth[i] = MOUTH_WATER_DEPTH + (centerWaterDepth[i] - MOUTH_WATER_DEPTH) * mt;
+                centerBankHeight[i] = MOUTH_BANK_HEIGHT + (centerBankHeight[i] - MOUTH_BANK_HEIGHT) * mt;
+            }
+        }
+
         // 4. 川の中心線から周囲へ距離フィールド(Dijkstra)を伝播させる
         const distToCenter = new Float32Array(n).fill(Infinity);
         const nearestCenter = new Int32Array(n).fill(-1);
@@ -912,7 +953,16 @@ export function carveRivers(c) {
             }
             if (cnt > 0) {
                 riverW[b] = sumW / cnt;
-                const minRim = riverW[b] + Math.min(1.2, riverBankDepth * 0.45);
+                // 河口に近い岸は、水面のすぐ上までしか持ち上げない(河口の両側に高い壁を作らない)
+                let ease = 1;
+                for (let k = 0; k < 6; k++) {
+                    const nb = Nb(b, k);
+                    if (nb < 0 || !river[nb]) continue;
+                    const src = nearestCenter[nb];
+                    if (src >= 0 && mouthDist[src] < mouthLen) ease = Math.min(ease, Smooth(0, mouthLen, mouthDist[src]));
+                }
+                const rimLift = MOUTH_BANK_HEIGHT + (Math.min(1.2, riverBankDepth * 0.45) - MOUTH_BANK_HEIGHT) * ease;
+                const minRim = riverW[b] + rimLift;
                 if (H[b] < minRim) H[b] = minRim;
             }
         }
