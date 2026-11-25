@@ -574,6 +574,37 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
         return bestIdx;
     }
 
+    // 地形メッシュの実際の面(CellTri の6近傍分割)を補間した高さ(ローカル高さ H の系)。
+    // 坑口の穴など地形の面がそもそも存在しない場所や島の外は NaN を返す
+    function terrainSurfaceHAt(lx, lz) {
+        const c = sampleTerrainAtLocal(lx, lz);
+        if (c < 0) return NaN;
+        const cx = c % nx, cz = (c / nx) | 0;
+        for (let iz = Math.max(0, cz - 2); iz <= Math.min(nz - 2, cz + 1); iz++) {
+            for (let ix = Math.max(0, cx - 2); ix <= Math.min(nx - 2, cx + 1); ix++) {
+                const a = iz * nx + ix, b = a + 1, cc = a + nx, d = cc + 1;
+                for (let t = 0; t < 2; t++) {
+                    const [i0, i1, i2] = CellTri(a, b, cc, d, iz, t);
+                    const ax = xz[i0].x, az = xz[i0].z;
+                    const v0x = xz[i1].x - ax, v0z = xz[i1].z - az;
+                    const v1x = xz[i2].x - ax, v1z = xz[i2].z - az;
+                    const den = v0x * v1z - v1x * v0z;
+                    if (Math.abs(den) < 1e-9) continue;
+                    const v2x = lx - ax, v2z = lz - az;
+                    const u = (v2x * v1z - v1x * v2z) / den;
+                    const w = (v0x * v2z - v2x * v0z) / den;
+                    if (u < -1e-6 || w < -1e-6 || u + w > 1 + 1e-6) continue;
+                    // この三角形が地形メッシュに実在するか(坑口の穴・島の外は実在しない)
+                    if (!(inside[i0] && inside[i1] && inside[i2])) return NaN;
+                    if (caveExcludedCenters.has(i0) || caveExcludedCenters.has(i1) || caveExcludedCenters.has(i2)) return NaN;
+                    if (cavePortalRimVerts[i0] > 0 || cavePortalRimVerts[i1] > 0 || cavePortalRimVerts[i2] > 0) return NaN;
+                    return H[i0] * (1 - u - w) + H[i1] * u + H[i2] * w;
+                }
+            }
+        }
+        return NaN;
+    }
+
     // 2点間の直線上に地面の出っ張り（めり込み）がなく、本当に橋が必要な川または深い渓谷かを検証する
     function isValidBridgeSpan(aNode, bNode, hasRiverBetween) {
         if (aNode < 0 || aNode >= n || bNode < 0 || bNode >= n || aNode === bNode) return false;
@@ -1789,6 +1820,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
         const cragAmp = 0.45 + 0.55 * cragStrength;
         const FLOOR_WAVE_AMP = 0.38;  // 床のうねり(上下)の最大振れ幅 [m]
         const FLOOR_TILT_AMP = 0.30;  // 床の左右の傾き(片側が高い)の最大量 [m]
+        const TUNNEL_SURFACE_MARGIN = 0.25; // 壁・天井を地形の表面からこの量だけ下に抑える [m]
         const FLOOR_ROUGH_EDGE = 0.36; // 床の壁際の岩のごつごつ(上下の乱れ) [m]
         const FLOOR_ROUGH_MID = 0.50;  // 床の中央のごつごつ(上下の乱れ) [m]
         // 入口と出口の高低差が大きい急な坑道は、元の坂にうねりが重なって急になり過ぎないよう控えめにする
@@ -1899,6 +1931,16 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                     pz += inDirZ * dP;
                 }
 
+                // 壁・天井が山肌の面から突き出さないよう、地形の表面の少し下に抑える(頭上の高さの最低限は守る)。
+                // 足りない所(地形が低すぎる所)だけは下の露出判定で岩の外殻が覆う
+                if (k >= 4) {
+                    const surfH = terrainSurfaceHAt(px - ox, pz - oz);
+                    if (Number.isFinite(surfH)) {
+                        const refY = fr.cy + ((k === 4) ? vE3 + 0.50 : (k === 7) ? vE0 + 0.50 : vFloorMax + 2.10);
+                        py = Math.min(py, Math.max(surfH + oy - TUNNEL_SURFACE_MARGIN, refY));
+                    }
+                }
+
                 if (k >= 4 && t > 0.18 && t < 0.82) {
                     const nearIdx = sampleTerrainAtLocal(px - ox, pz - oz);
                     if (nearIdx < 0 || !inside[nearIdx] || py > (H[nearIdx] + oy) + 0.30) {
@@ -1948,6 +1990,17 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                 const dP = targetProj - curP;
                 mx += inDirX * dP;
                 mz += inDirZ * dP;
+
+                // 入口の壁・天井が山肌の面から細長く突き出さないよう、地形の表面の少し下に抑える
+                if (k >= 4) {
+                    const surfH = terrainSurfaceHAt(mx - ox, mz - oz);
+                    if (Number.isFinite(surfH)) {
+                        let floorMaxY = -1e9;
+                        for (let q = 0; q < 4; q++) floorMaxY = Math.max(floorMaxY, collar[q].y);
+                        const refY = (k === 4) ? collar[3].y + 0.50 : (k === 7) ? collar[0].y + 0.50 : floorMaxY + 1.90;
+                        my = Math.min(my, Math.max(surfH + oy - TUNNEL_SURFACE_MARGIN, refY));
+                    }
+                }
                 collar.push({ x: mx, y: my, z: mz });
             }
             return collar;
@@ -2065,6 +2118,24 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
             });
         });
 
+        // 三角形の形の良さ(正三角形=1、一直線上の3点=0)
+        const triQ = (a, b, c) => {
+            const abx = b.x - a.x, aby = b.y - a.y, abz = b.z - a.z;
+            const acx = c.x - a.x, acy = c.y - a.y, acz = c.z - a.z;
+            const ccx = aby * acz - abz * acy, ccy = abz * acx - abx * acz, ccz = abx * acy - aby * acx;
+            const bcx = c.x - b.x, bcy = c.y - b.y, bcz = c.z - b.z;
+            const sq = abx * abx + aby * aby + abz * abz + acx * acx + acy * acy + acz * acz + bcx * bcx + bcy * bcy + bcz * bcz;
+            return sq > 1e-12 ? 2.0 * Math.sqrt(3) * Math.hypot(ccx, ccy, ccz) / sq : 0.0;
+        };
+        // 四角形の対角線は基本どおり交互(ごつごつした見た目)にするが、その側が極端に細長い三角形
+        // (一直線上に並ぶ3点など。入口で山肌から細く突き出して見える)になる場合だけ、もう一方の対角線にする。true=p00-p11
+        const pickDiag0 = (parityDiag0, p00, p01, p10, p11) => {
+            const q0 = Math.min(triQ(p00, p01, p11), triQ(p00, p11, p10));
+            const q1 = Math.min(triQ(p00, p01, p10), triQ(p01, p11, p10));
+            if (parityDiag0) return !(q0 < 0.25 && q1 > q0);
+            return (q1 < 0.25 && q0 > q1);
+        };
+
         // 内壁・床・露出岩外殻の出力（交互対角分割＋面ごとの明暗ジッターで山肌と同じローポリ岩ファセットに統一）
         const totalRings = rings.length;
         for (let s = 0; s < totalRings - 1; s++) {
@@ -2084,7 +2155,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                 const alpha = isFloor ? 1.0 : 0.0;
 
                 // 床も壁と同じ大きさの面(2枚割り・交互の対角)にして、ポリゴンの粗さを揃える
-                if (((s + k) & 1) === 0) {
+                if (pickDiag0(((s + k) & 1) === 0, p00, p01, p10, p11)) {
                     terrainMb.emit(p00, p01, p11, shadeColor(base00, jA), shadeColor(base01, jA), shadeColor(base11, jA), alpha);
                     terrainMb.emit(p00, p11, p10, shadeColor(base00, jB), shadeColor(base11, jB), shadeColor(base10, jB), alpha);
                 } else {
@@ -2101,7 +2172,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                     const kNext = (k + 1) % RING_VERTS;
                     const ocA = shadeColor(outerRockCol, cr.range(-CAVE_FACET_JITTER, CAVE_FACET_JITTER));
                     const ocB = shadeColor(outerRockCol, cr.range(-CAVE_FACET_JITTER, CAVE_FACET_JITTER));
-                    if (((s + k) & 1) === 0) {
+                    if (pickDiag0(((s + k) & 1) === 0, out0[k], out0[kNext], out1[k], out1[kNext])) {
                         terrainMb.emit(out0[k], out1[kNext], out0[kNext], ocA, ocA, ocA, 0.0);
                         terrainMb.emit(out0[k], out1[k], out1[kNext], ocB, ocB, ocB, 0.0);
                     } else {
