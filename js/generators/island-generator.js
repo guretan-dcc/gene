@@ -594,10 +594,11 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                     const u = (v2x * v1z - v1x * v2z) / den;
                     const w = (v0x * v2z - v2x * v0z) / den;
                     if (u < -1e-6 || w < -1e-6 || u + w > 1 + 1e-6) continue;
-                    // この三角形が地形メッシュに実在するか(坑口の穴・島の外は実在しない)
+                    // この三角形が地形メッシュに実在するか(坑口の穴・島の外は実在しない)。
+                    // 坑口の縁(アーチ)の頂点を含む三角形は穴の外側に実在する面なので、ここでも高さを返す
+                    // (返さないと坑口の天井がその面を突き抜けても気付けず、細い三角形の突起になる)
                     if (!(inside[i0] && inside[i1] && inside[i2])) return NaN;
                     if (caveExcludedCenters.has(i0) || caveExcludedCenters.has(i1) || caveExcludedCenters.has(i2)) return NaN;
-                    if (cavePortalRimVerts[i0] > 0 || cavePortalRimVerts[i1] > 0 || cavePortalRimVerts[i2] > 0) return NaN;
                     return H[i0] * (1 - u - w) + H[i1] * u + H[i2] * w;
                 }
             }
@@ -2076,6 +2077,59 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
         ringExposed.push(false);
         gizmoPts.push(tun.exitWorldPos);
         tunnelCurveBySegKey.set(tun.segKey, gizmoPts);
+
+        // 壁・天井の四角形の「頂点」だけでなく「面の途中」も山肌から出ないようにする仕上げ。
+        // 頂点が地表より下でも、地形の三角形の割り方と斜めに交わると面の途中が山肌から顔を出し、
+        // 入口に細い三角形の突起として見える。面の途中をサンプルして、出ている分だけ頂点を下げる
+        // (頭上の高さの最低限は守る。それでも足りない所は岩の外殻が覆う)
+        {
+            const SURF_SAMPLE_MARGIN = 0.08;
+            const MIN_HEAD = 1.90;
+            const wts = [[0.25, 0.5], [0.5, 0.5], [0.75, 0.5], [0.5, 0.2], [0.5, 0.8]];
+            for (let iter = 0; iter < 4; iter++) {
+                let changed = false;
+                for (let s = 0; s < rings.length - 1; s++) {
+                    const r0 = rings[s], r1 = rings[s + 1];
+                    for (let k = 3; k < RING_VERTS; k++) {
+                        const kn = (k + 1) % RING_VERTS;
+                        // 四角形の頂点: [リングs の k, kn][リングs+1 の k, kn]
+                        const q = [
+                            { r: r0, k: k, free: s > 0 && k >= 4 }, { r: r0, k: kn, free: s > 0 && kn >= 4 },
+                            { r: r1, k: k, free: s + 1 < rings.length - 1 && k >= 4 }, { r: r1, k: kn, free: s + 1 < rings.length - 1 && kn >= 4 }
+                        ];
+                        if (!q.some(e => e.free)) continue;
+                        for (const [a, b] of wts) {
+                            // a: k→kn 方向, b: リングs→s+1 方向 の双一次補間
+                            const w = [(1 - a) * (1 - b), a * (1 - b), (1 - a) * b, a * b];
+                            let sx = 0, sy = 0, sz = 0;
+                            for (let i = 0; i < 4; i++) {
+                                const p = q[i].r[q[i].k];
+                                sx += p.x * w[i]; sy += p.y * w[i]; sz += p.z * w[i];
+                            }
+                            const surfH = terrainSurfaceHAt(sx - ox, sz - oz);
+                            if (!Number.isFinite(surfH)) continue;
+                            const excess = sy - (surfH + oy - SURF_SAMPLE_MARGIN);
+                            if (excess <= 0.0) continue;
+                            let wsum = 0;
+                            for (let i = 0; i < 4; i++) if (q[i].free) wsum += w[i];
+                            if (wsum < 1e-6) continue;
+                            // 動かせる頂点を同じ量だけ下げれば、その点の高さが excess だけ下がる
+                            const drop = Math.min(excess / wsum, 0.6);
+                            for (let i = 0; i < 4; i++) {
+                                if (!q[i].free) continue;
+                                const ring = q[i].r, kk = q[i].k;
+                                let floorMaxY = -1e9;
+                                for (let f = 0; f < 4; f++) floorMaxY = Math.max(floorMaxY, ring[f].y);
+                                const minY = (kk === 4) ? ring[3].y + 0.50 : (kk === 7) ? ring[0].y + 0.50 : floorMaxY + MIN_HEAD;
+                                const ny = Math.max(minY, ring[kk].y - drop);
+                                if (ny < ring[kk].y - 1e-4) { ring[kk].y = ny; changed = true; }
+                            }
+                        }
+                    }
+                }
+                if (!changed) break;
+            }
+        }
 
         // 床も壁も山肌の岩色(palette.rock)ベースの同じ色にし、質感を揃える(床だけ色味や明暗が違って見えないように)。
         // 面ごとの明暗のばらつきも山肌の岩(±0.045)に合わせる。奥ほど暗くなる量は控えめにする
