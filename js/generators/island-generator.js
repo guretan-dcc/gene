@@ -1773,16 +1773,17 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
         }
 
         const halfW = caveW * 0.5;
-        // 山肌と同じ角張った8頂点天然岩断面（壁際がわずかにせり上がるU字の岩底＋3分割床で平らな板感を払拭）
+        // 山肌と同じ角張った8頂点天然岩断面（壁際がせり上がるU字の岩底＋3分割床で平らな板感を払拭）。
+        // 床と壁の境目が直角にならないよう、床の端を外へ広げて持ち上げ、壁の足元(k=4,7)を低めに外へ張り出して斜めに繋ぐ
         const rockCaveProfile = [
-            { u: -halfW,        v: 0.20 },
+            { u: -halfW * 0.90, v: 0.36 },
             { u: -halfW * 0.34, v: 0.00 },
             { u:  halfW * 0.34, v: 0.00 },
-            { u:  halfW,        v: 0.20 },
-            { u:  halfW * 1.12, v: caveH * 0.50 },
+            { u:  halfW * 0.90, v: 0.36 },
+            { u:  halfW * 1.20, v: caveH * 0.44 },
             { u:  halfW * 0.52, v: caveH * 0.98 },
             { u: -halfW * 0.52, v: caveH * 0.98 },
-            { u: -halfW * 1.12, v: caveH * 0.50 }
+            { u: -halfW * 1.20, v: caveH * 0.44 }
         ];
 
         const cragAmp = 0.45 + 0.55 * cragStrength;
@@ -1813,7 +1814,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
             const sectionScaleH = 1.0 + (perlin.fbm((fr.cx - ox) / half * 2.5 + 4.1, (fr.cz - oz) / half * 2.5 - 3.3, 3, 2.0, 2) - 0.5) * 0.40 * cragAmp;
 
             // 床全体の大きなうねり(歩く線に沿って緩やかに上下)と左右の傾き(片側が高い)。
-            // 両端は坑口の床へ繋がるので0へ絞る。うねりで床が上がった分は壁・天井も持ち上げて頭上の高さを保つ
+            // 両端は坑口の床へ繋がるので0へ絞る
             const endTaper = smoothstep(0.06, 0.26, Math.min(t, 1.0 - t));
             const sAlong = t * len;
             const TAU = Math.PI * 2.0;
@@ -1821,10 +1822,11 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
             const ftN = Math.sin(TAU * (sAlong / 12.0 + floorPhase[2]));
             const floorWave = fwN * FLOOR_WAVE_AMP * floorCalm * cragAmp * endTaper;
             const floorTilt = ftN * FLOOR_TILT_AMP * cragAmp * endTaper;
-            const floorUp = Math.max(0.0, floorWave + Math.abs(floorTilt));
 
             let isExposed = false;
-            let floorPeak = 0.0; // この断面で床が最も持ち上がった量(壁・天井をその分持ち上げて頭上を確保)
+            // 床の頂点を先に決め、壁の足元・天井はその高さを下回らないようにだけ調整する(必要な分だけ持ち上げて山肌から出ないようにする)
+            let vFloorMax = -1e9;
+            let uE0 = 0.0, vE0 = 0.0, uE3 = 0.0, vE3 = 0.0;
             const ring = [];
             for (let k = 0; k < RING_VERTS; k++) {
                 const baseU = rockCaveProfile[k].u;
@@ -1844,7 +1846,8 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                     v += (nV * FLOOR_ROUGH_EDGE + cr.signed() * FLOOR_ROUGH_EDGE * 0.9) * cragAmp;
                     v = clamp(v, -0.34, 0.70);
                     v += floorWave + (k === 0 ? floorTilt : -floorTilt);
-                    floorPeak = Math.max(floorPeak, v - baseV * sectionScaleH);
+                    vFloorMax = Math.max(vFloorMax, v);
+                    if (k === 0) { uE0 = u; vE0 = v; } else { uE3 = u; vE3 = v; }
                     if (allowAlongJitter) alongJitter = (nU * 0.20 + cr.signed() * 0.20) * cellSize * cragAmp;
                 } else if (k === 1 || k === 2) {
                     // 床の中央2頂点：歩きやすさを損なわない範囲で、フラットシェーディングの凹凸が明確に出るゴツゴツ岩床にする
@@ -1855,20 +1858,28 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                     v = (nV * FLOOR_ROUGH_MID + cr.signed() * FLOOR_ROUGH_MID * 0.85 + altSign * 0.10) * cragAmp;
                     v = clamp(v, -0.50, 0.55);
                     v += floorWave + (k === 1 ? floorTilt : -floorTilt) * 0.6;
-                    floorPeak = Math.max(floorPeak, v - baseV * sectionScaleH);
+                    vFloorMax = Math.max(vFloorMax, v);
                     if (allowAlongJitter) alongJitter = (nV * 0.26 + cr.signed() * 0.28) * cellSize * cragAmp;
                 } else {
                     // 側壁・天井：山肌と同じ粗さでゴツゴツと張り出し・窪み・前後ジッターを付与
                     const sign = (k === 4 || k === 5) ? 1 : -1;
                     u += (nU * 0.34 + cr.signed() * 0.24) * halfW * cragAmp;
-                    const minAbsU = (k === 4 || k === 7) ? halfW * 0.62 : halfW * 0.22;
+                    const isFoot = (k === 4 || k === 7); // 壁の足元(床の端と繋がる頂点)
+                    const minAbsU = isFoot ? halfW * 0.62 : halfW * 0.22;
                     u = sign > 0 ? Math.max(u, minAbsU) : Math.min(u, -minAbsU);
 
-                    v += (nV * 0.28 + cr.signed() * 0.20) * caveH * cragAmp;
-                    const minV = (k === 4 || k === 7) ? caveH * 0.34 : caveH * 0.80;
-                    const maxV = (k === 4 || k === 7) ? caveH * 0.84 : caveH * 1.38;
+                    v += (nV * 0.28 + cr.signed() * 0.20) * caveH * cragAmp * (isFoot ? 0.55 : 1.0);
+                    const minV = isFoot ? caveH * 0.30 : caveH * 0.80;
+                    const maxV = isFoot ? caveH * 0.64 : caveH * 1.38;
                     v = clamp(v, minV, maxV);
-                    v += Math.max(floorUp, floorPeak) * ((k === 4 || k === 7) ? 0.9 : 0.7);
+                    if (isFoot) {
+                        // 床の端より必ず外側・上側に置き、境目が直角や逆向きにならないようにする
+                        const uE = (k === 4) ? uE3 : uE0, vE = (k === 4) ? vE3 : vE0;
+                        u = (k === 4) ? Math.max(u, uE + halfW * 0.22) : Math.min(u, uE - halfW * 0.22);
+                        v = Math.max(v, vE + 0.50);
+                    } else {
+                        v = Math.max(v, vFloorMax + 2.10); // 頭上の高さの最低限
+                    }
 
                     if (allowAlongJitter) alongJitter = (nU * 0.16 + cr.signed() * 0.18) * cellSize * cragAmp;
                 }
@@ -2013,25 +2024,22 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
         gizmoPts.push(tun.exitWorldPos);
         tunnelCurveBySegKey.set(tun.segKey, gizmoPts);
 
-        // 山肌の岩色(palette.rock)をベースに、床中央の踏み跡だけ砂岩色をわずかに混ぜて自然な岩洞窟にする
-        const floorCenterCol = lerpColor(palette.rock, palette.sand, 0.34);
-        const floorEdgeCol = lerpColor(palette.rock, palette.under, 0.24);
+        // 床も壁も山肌の岩色(palette.rock)ベースの同じ色にし、質感を揃える(床だけ色味や明暗が違って見えないように)。
+        // 面ごとの明暗のばらつきも山肌の岩(±0.045)に合わせる。奥ほど暗くなる量は控えめにする
         const wallColBase = lerpColor(palette.rock, palette.under, 0.30);
         const outerRockCol = lerpColor(palette.rock, palette.under, 0.16);
+        const CAVE_FACET_JITTER = 0.05;
 
         const getRingVertColor = (rIdx, k, isFloor) => {
             const t = ringTs[rIdx];
             const aoDepth = Math.sin(t * Math.PI);
-            const floorVertBase = (k === 1 || k === 2) ? floorCenterCol : floorEdgeCol;
             if (rIdx === 0) {
-                return lerpColor(rACols[k], isFloor ? floorVertBase : wallColBase, isFloor ? 0.38 : 0.30);
+                return lerpColor(rACols[k], wallColBase, 0.50);
             }
             if (rIdx === rings.length - 1) {
-                return lerpColor(rBCols[k], isFloor ? floorVertBase : wallColBase, isFloor ? 0.38 : 0.30);
+                return lerpColor(rBCols[k], wallColBase, 0.50);
             }
-            const base = isFloor ? floorVertBase : wallColBase;
-            const darkAmt = isFloor ? (-0.06 - aoDepth * 0.34) : (-0.10 - aoDepth * 0.48);
-            return shadeColor(base, darkAmt);
+            return shadeColor(wallColBase, -0.05 - aoDepth * 0.20);
         };
 
         // 露出区間のゴツゴツ天然岩外殻（滑らかな筒ではなく、山肌と同じ角張った石橋・岩アーチ）を事前にリング単位で計算して連続接続
@@ -2040,17 +2048,19 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
             let mx = 0, my = 0, mz = 0;
             for (let k = 0; k < RING_VERTS; k++) { mx += ring[k].x; my += ring[k].y; mz += ring[k].z; }
             mx /= RING_VERTS; my /= RING_VERTS; mz /= RING_VERTS;
+            // 坑口に近いほど外殻を薄くして、入口まわりに岩のトゲがはみ出さないようにする(奥へ行くほど元の厚みに戻す)
+            const endF = 0.25 + 0.75 * smoothstep(1.5, 5.5, Math.min(rIdx, rings.length - 1 - rIdx));
             return ring.map((pt, k) => {
                 let oxv = pt.x - mx, oyv = pt.y - my, ozv = pt.z - mz;
                 const ol = Math.hypot(oxv, oyv, ozv) || 1;
                 const rNoise = 1.0 - Math.abs(2.0 * perlin.fbm((pt.x - ox) / half * 3.0, (pt.z - oz) / half * 3.0, (k + 6) & 15, 2.0, 2) - 1.0);
-                const cragThick = (k <= 3 ? 0.52 : 0.84) + (0.45 + 1.25 * rNoise) * (0.35 + 0.65 * cragStrength);
-                const topRidgeBoost = (k === 5 || k === 6) ? (rNoise * 0.85 * cragStrength) : 0.0;
-                const botHang = (k <= 3) ? -(0.35 + rNoise * 0.58 * cragStrength) : 0.0;
+                const cragThick = ((k <= 3 ? 0.40 : 0.60) + (0.30 + 0.80 * rNoise) * (0.35 + 0.65 * cragStrength)) * endF;
+                const topRidgeBoost = (k === 5 || k === 6) ? (rNoise * 0.30 * cragStrength * endF) : 0.0;
+                const botHang = (k <= 3) ? -(0.25 + rNoise * 0.30 * cragStrength) * endF : 0.0;
                 return {
-                    x: pt.x + (oxv / ol) * cragThick + cr.signed() * 0.20 * cragStrength,
+                    x: pt.x + (oxv / ol) * cragThick + cr.signed() * 0.20 * cragStrength * endF,
                     y: pt.y + (oyv / ol) * cragThick + topRidgeBoost + botHang,
-                    z: pt.z + (ozv / ol) * cragThick + cr.signed() * 0.20 * cragStrength
+                    z: pt.z + (ozv / ol) * cragThick + cr.signed() * 0.20 * cragStrength * endF
                 };
             });
         });
@@ -2064,7 +2074,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                 const p00 = ring0[k], p01 = ring0[kNext];
                 const p10 = ring1[k], p11 = ring1[kNext];
                 const isFloor = (k <= 2);
-                const jAmp = isFloor ? 0.10 : 0.085;
+                const jAmp = CAVE_FACET_JITTER;
                 const jA = cr.range(-jAmp, jAmp);
                 const jB = cr.range(-jAmp, jAmp);
                 const base00 = getRingVertColor(s, k, isFloor);
@@ -2073,22 +2083,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                 const base11 = getRingVertColor(s + 1, kNext, isFloor);
                 const alpha = isFloor ? 1.0 : 0.0;
 
-                if (isFloor && cr.next() < 0.55) {
-                    // 床の一部のマスは4枚の三角形に割り、中心点を上下させる(残りは壁と同じ2枚割りの大きな面)。
-                    // 大きな面と小さな面が混ざると、岩の床らしくごつごつ見える(四辺は共有のまま=隙間なし)
-                    const cx = (p00.x + p01.x + p10.x + p11.x) * 0.25;
-                    const cz = (p00.z + p01.z + p10.z + p11.z) * 0.25;
-                    const cy = (p00.y + p01.y + p10.y + p11.y) * 0.25 + cr.range(-0.28, 0.32) * cragAmp;
-                    const pc = { x: cx, y: cy, z: cz };
-                    const baseC = lerpColor(lerpColor(base00, base01, 0.5), lerpColor(base10, base11, 0.5), 0.5);
-                    const jC = cr.range(-jAmp, jAmp);
-                    terrainMb.emit(p00, p01, pc, shadeColor(base00, jA), shadeColor(base01, jA), shadeColor(baseC, jA), alpha);
-                    terrainMb.emit(p01, p11, pc, shadeColor(base01, jB), shadeColor(base11, jB), shadeColor(baseC, jB), alpha);
-                    terrainMb.emit(p11, p10, pc, shadeColor(base11, jC), shadeColor(base10, jC), shadeColor(baseC, jC), alpha);
-                    terrainMb.emit(p10, p00, pc, shadeColor(base10, jA * 0.6 - jB * 0.4), shadeColor(base00, jA * 0.6 - jB * 0.4), shadeColor(baseC, jA * 0.6 - jB * 0.4), alpha);
-                    continue;
-                }
-
+                // 床も壁と同じ大きさの面(2枚割り・交互の対角)にして、ポリゴンの粗さを揃える
                 if (((s + k) & 1) === 0) {
                     terrainMb.emit(p00, p01, p11, shadeColor(base00, jA), shadeColor(base01, jA), shadeColor(base11, jA), alpha);
                     terrainMb.emit(p00, p11, p10, shadeColor(base00, jB), shadeColor(base11, jB), shadeColor(base10, jB), alpha);
@@ -2104,8 +2099,8 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                 const out1 = outerShellRings[s + 1];
                 for (let k = 0; k < RING_VERTS; k++) {
                     const kNext = (k + 1) % RING_VERTS;
-                    const ocA = shadeColor(outerRockCol, cr.range(-0.085, 0.085));
-                    const ocB = shadeColor(outerRockCol, cr.range(-0.085, 0.085));
+                    const ocA = shadeColor(outerRockCol, cr.range(-CAVE_FACET_JITTER, CAVE_FACET_JITTER));
+                    const ocB = shadeColor(outerRockCol, cr.range(-CAVE_FACET_JITTER, CAVE_FACET_JITTER));
                     if (((s + k) & 1) === 0) {
                         terrainMb.emit(out0[k], out1[kNext], out0[kNext], ocA, ocA, ocA, 0.0);
                         terrainMb.emit(out0[k], out1[k], out1[kNext], ocB, ocB, ocB, 0.0);
