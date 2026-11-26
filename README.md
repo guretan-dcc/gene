@@ -68,7 +68,7 @@ Unity版 `FloatingTerrainPrefabCreator` と同じく、役割ごとにオブジ�
 ## Unity 側の準備
 
 1. `unity/LowPolyWater.unitypackage` を Unity に取り込む（`Assets/MyAssets/GameObjects/SharedMaterials/` に `LowPolyWater.shader` / `LowPolyWater.mat` / `LowPolyWaterVolume.shader` / `LowPolyWaterVolume.mat` が入ります。同じ内容を `unity/Assets/` にも置いています）。
-2. 書き出した `.prefab` を取り込む。Terrain / Trees / Grass / Bridges は既存の `LowPolyVertexColor.mat`、Water は `LowPolyWater.mat`、WaterVolume は `LowPolyWaterVolume.mat` を GUID で参照します。
+2. 「Prefab」ボタンで書き出した `<ステージ名>.unitypackage` を取り込む（Assets > Import Package > Custom Package、またはダブルクリック）。`Assets/MyAssets/GameObjects/Stages/<ステージ名>/` に Prefab と、メッシュごとの `.asset`（`Meshes/`）が入ります。GUID はステージ名から決まる固定値なので、同じステージ名で出し直して取り込めば、シーンに置いたPrefabなどの参照を保ったまま中身だけ更新されます（ステージ名を変えると別のアセットになります）。Terrain / Trees / Grass / Bridges は既存の `LowPolyVertexColor.mat`、Water は `LowPolyWater.mat`、WaterVolume は `LowPolyWaterVolume.mat` を GUID で参照します。
 
 `LowPolyWater` シェーダーは Built-in RP の半透明シェーダーで、頂点カラーを色に使い、`Tint`・`Opacity`（既定 0.88）・`Brightness`・スペキュラを調整できます。水メッシュの頂点色はUnityエディターと同じくリニアfloatで書き出すため、シェーダー側では色変換をしません。先に深度だけを書き込むパスを持つため、滝の前面・背面が二重に透けて描かれません。
 
