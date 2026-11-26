@@ -1,6 +1,7 @@
 import { buildArchipelagoStage, showFlags } from './archipelago.js';
 import { createGizmoGroup } from './gizmos.js';
 import { routeEditState, updateCamera, worldGroup } from './scene.js';
+import { createWaterMaterial } from './water-material.js';
 import { builtArchipelago, setBuiltArchipelago, state } from '../state.js';
 
 export function rebuildScene() {
@@ -15,12 +16,7 @@ export function rebuildScene() {
         vertexColors: true,
         wireframe: showFlags.wire
     });
-    const waterMat = new THREE.MeshLambertMaterial({
-        vertexColors: true,
-        transparent: true,
-        opacity: 0.88,
-        wireframe: showFlags.wire
-    });
+    const waterMat = createWaterMaterial(showFlags.wire);
 
     let totalVerts = 0, totalTris = 0, totalTrees = 0, totalGrass = 0;
 

@@ -1,4 +1,5 @@
 import { serializeMeshToUnityYaml } from './unity-yaml.js';
+import { makeZip } from './zip.js';
 import { ColoredMeshBuilder, fixInwardFacing } from '../mesh/colored-mesh-builder.js';
 import { builtArchipelago, state } from '../state.js';
 import { showToast } from '../ui/toast.js';
@@ -12,6 +13,11 @@ import { clamp } from '../utils/math.js';
 //     ├ Trees   : 木 + 簡易コライダー(幹の筒+葉冠の角錐)のMeshCollider
 //     ├ Grass   : 草（当たり判定なし）
 //     └ Bridges : 橋(板・橋脚) + 床だけのMeshCollider
+// 出力は ZIP（Unityの Assets フォルダにそのまま展開する）:
+//   <ステージ名>/<ステージ名>.prefab(.meta)          … 構成だけを持つPrefab
+//   <ステージ名>/Meshes/<ステージ名>_*Mesh.asset(.meta) … メッシュは1つずつ別の .asset
+// GUID はステージ名から決まる固定値なので、同じステージ名で出し直して上書きすれば、Unity側の参照
+// (シーンに置いたPrefabなど)を保ったまま中身だけ更新される。
 // マテリアルのGUID（unity/ フォルダ内のアセットと対応）
 //   LowPolyVertexColor.mat : お使いのプロジェクトの共有マテリアル（不透明・頂点カラー）
 //   LowPolyWater.mat       : 水用の半透明マテリアル（unity/LowPolyWater.unitypackage で取り込み）
@@ -19,6 +25,29 @@ const SHARED_MATERIAL_GUID = '4b6c0ee4556d04f4ba685ab776a31dad';
 const WATER_MATERIAL_GUID = '3c4247bb74ca45c8ac318105ca24571c';
 //   LowPolyWaterVolume.mat : 水中の色付け用（水の体積メッシュ WaterVolume に付ける。ステンシルで水の中だけ塗る）
 const WATER_VOLUME_MATERIAL_GUID = '08980ca0595a45338cda755a1104b331';
+
+// ステージ名から決まる固定GUID(32桁hex)。同じ文字列なら必ず同じ値(cyrb128)
+function stableGuid(seed) {
+    let h1 = 1779033703, h2 = 3144134277, h3 = 1013904242, h4 = 2773480762;
+    for (let i = 0; i < seed.length; i++) {
+        const k = seed.charCodeAt(i);
+        h1 = h2 ^ Math.imul(h1 ^ k, 597399067);
+        h2 = h3 ^ Math.imul(h2 ^ k, 2869860233);
+        h3 = h4 ^ Math.imul(h3 ^ k, 951274213);
+        h4 = h1 ^ Math.imul(h4 ^ k, 2716044179);
+    }
+    h1 = Math.imul(h3 ^ (h1 >>> 18), 597399067);
+    h2 = Math.imul(h4 ^ (h2 >>> 22), 2869860233);
+    h3 = Math.imul(h1 ^ (h3 >>> 17), 951274213);
+    h4 = Math.imul(h2 ^ (h4 >>> 19), 2716044179);
+    return [h1 ^ h2 ^ h3 ^ h4, h2 ^ h1, h3 ^ h1, h4 ^ h1]
+        .map(v => (v >>> 0).toString(16).padStart(8, '0')).join('');
+}
+
+// ファイル名に使えない文字を除く(ステージ名はそのままフォルダ名・ファイル名になる)
+function safeName(name) {
+    return String(name || 'Stage').replace(/[\\/:*?"<>|]/g, '_').trim() || 'Stage';
+}
 
 function concatMeshes(list) {
     const out = new ColoredMeshBuilder();
@@ -46,7 +75,11 @@ export function exportUnityPrefab() {
         bridgesCol: builtArchipelago.allBridgeColMb
     };
 
-    const MESH_ID = { terrain: 4300001, water: 4300002, waterVol: 4300008, trees: 4300003, treesCol: 4300004, grass: 4300005, bridges: 4300006, bridgesCol: 4300007 };
+    const stage = safeName(state.stageName);
+    // メッシュは .asset ごとに1つ。単独の .asset のメインオブジェクトのfileIDは 4300000
+    const MESH_FILE_ID = 4300000;
+    const meshGuid = (key) => stableGuid(`${stage}|mesh|${key}`);
+    const meshRef = (key) => `{fileID: ${MESH_FILE_ID}, guid: ${meshGuid(key)}, type: 2}`;
     // [オブジェクト名, 表示メッシュ, コライダーメッシュ, 影を落とすか, 基準ID]
     const objects = [
         ['Terrain', 'terrain', 'terrain', 1, 1100],
@@ -93,7 +126,7 @@ ${COMMON}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}`;
 
     const docs = [];
-    docs.push(gameObject(ROOT_GO, state.stageName, [ROOT_TR], ROOT_STATIC));
+    docs.push(gameObject(ROOT_GO, stage, [ROOT_TR], ROOT_STATIC));
     docs.push(transform(ROOT_TR, ROOT_GO, 0, objects.map(o => o[4] + 1), 0));
 
     const usedMeshes = new Set();
@@ -107,7 +140,7 @@ ${COMMON}
 MeshFilter:
 ${COMMON}
   m_GameObject: {fileID: ${go}}
-  m_Mesh: {fileID: ${MESH_ID[vis]}}`);
+  m_Mesh: ${meshRef(vis)}`);
         docs.push(`--- !u!23 &${mr}
 MeshRenderer:
 ${COMMON}
@@ -157,7 +190,7 @@ ${COMMON}
   serializedVersion: 4
   m_Convex: 0
   m_CookingOptions: 30
-  m_Mesh: {fileID: ${MESH_ID[col]}}`);
+  m_Mesh: ${meshRef(col)}`);
             usedMeshes.add(col);
         }
     });
@@ -166,13 +199,26 @@ ${COMMON}
         terrain: 'TerrainMesh', water: 'WaterMesh', waterVol: 'WaterVolumeMesh', trees: 'TreesMesh', treesCol: 'TreesColliderMesh',
         grass: 'GrassMesh', bridges: 'BridgeMesh', bridgesCol: 'BridgeCollider'
     };
+    const header = '%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n';
+    const files = [];
     for (const key of usedMeshes) {
-        docs.push(serializeMeshToUnityYaml(MESH_ID[key], `${state.stageName}_${meshNames[key]}`, parts[key], key === 'water').replace(/\n$/, ''));
+        const fileName = `${stage}_${meshNames[key]}.asset`;
+        const body = serializeMeshToUnityYaml(MESH_FILE_ID, `${stage}_${meshNames[key]}`, parts[key], key === 'water').replace(/\n$/, '');
+        files.push({ name: `${stage}/Meshes/${fileName}`, text: `${header}${body}\n` });
+        files.push({
+            name: `${stage}/Meshes/${fileName}.meta`,
+            text: `fileFormatVersion: 2\nguid: ${meshGuid(key)}\nNativeFormatImporter:\n  externalObjects: {}\n  mainObjectFileID: ${MESH_FILE_ID}\n  userData: \n  assetBundleName: \n  assetBundleVariant: \n`
+        });
     }
 
-    const yaml = `%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n${docs.join('\n')}\n`;
-    downloadText(`${state.stageName}.prefab`, yaml);
-    showToast(`${state.stageName}.prefab を出力しました`);
+    files.push({ name: `${stage}/${stage}.prefab`, text: `${header}${docs.join('\n')}\n` });
+    files.push({
+        name: `${stage}/${stage}.prefab.meta`,
+        text: `fileFormatVersion: 2\nguid: ${stableGuid(`${stage}|prefab`)}\nPrefabImporter:\n  externalObjects: {}\n  userData: \n  assetBundleName: \n  assetBundleVariant: \n`
+    });
+
+    downloadBlob(`${stage}_UnityAssets.zip`, new Blob([makeZip(files)], { type: 'application/zip' }));
+    showToast(`${stage}_UnityAssets.zip を出力しました（Assets に展開してください）`);
 }
 
 export function exportSettingsJson() {
@@ -218,6 +264,15 @@ export function exportPlyMesh() {
     }
     downloadText(`${state.stageName}_VertexColor.ply`, lines.join('\n'));
     showToast("頂点カラー付きPLYメッシュを保存しました");
+}
+
+function downloadBlob(filename, blob) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
 }
 
 function downloadText(filename, text) {

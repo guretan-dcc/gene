@@ -8,6 +8,7 @@ import './scene/camera-controls.js';
 import { setupInspectorEvents, syncInspectorUI } from './ui/inspector.js';
 import { setupNumberScrub } from './ui/scrub.js';
 import { setupTabs } from './ui/tabs.js';
+import { updateWaterTime } from './scene/water-material.js';
 
 function onWindowResize() {
     const container = document.getElementById('viewportContainer');
@@ -34,6 +35,7 @@ window.onload = function () {
 
     function animate() {
         requestAnimationFrame(animate);
+        updateWaterTime(performance.now() / 1000);   // 水面の波(プレビュー)
         renderer.render(scene, camera);
     }
     animate();
