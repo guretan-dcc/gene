@@ -8,6 +8,7 @@ import { clamp } from '../utils/math.js';
 //   <ステージ名>
 //     ├ Terrain : 地形(氷含む) + MeshCollider
 //     ├ Water   : 水面・滝（LowPolyWater.mat・当たり判定なし）
+//     ├ WaterVolume : 湖・川の水を囲む閉じた立体（LowPolyWaterVolume.mat・水中に入ったときの色付け用・当たり判定なし）
 //     ├ Trees   : 木 + 簡易コライダー(幹の筒+葉冠の角錐)のMeshCollider
 //     ├ Grass   : 草（当たり判定なし）
 //     └ Bridges : 橋(板・橋脚) + 床だけのMeshCollider
@@ -16,6 +17,8 @@ import { clamp } from '../utils/math.js';
 //   LowPolyWater.mat       : 水用の半透明マテリアル（unity/LowPolyWater.unitypackage で取り込み）
 const SHARED_MATERIAL_GUID = '4b6c0ee4556d04f4ba685ab776a31dad';
 const WATER_MATERIAL_GUID = '3c4247bb74ca45c8ac318105ca24571c';
+//   LowPolyWaterVolume.mat : 水中の色付け用（水の体積メッシュ WaterVolume に付ける。ステンシルで水の中だけ塗る）
+const WATER_VOLUME_MATERIAL_GUID = '08980ca0595a45338cda755a1104b331';
 
 function concatMeshes(list) {
     const out = new ColoredMeshBuilder();
@@ -35,6 +38,7 @@ export function exportUnityPrefab() {
     const parts = {
         terrain: concatMeshes(terrainFixed),
         water: concatMeshes(islands.map(i => i.waterMb)),
+        waterVol: concatMeshes(islands.map(i => i.waterVolMb)),
         trees: concatMeshes(islands.map(i => i.treesMb)),
         treesCol: concatMeshes(islands.map(i => i.treeColMb)),
         grass: concatMeshes(islands.map(i => i.grassMb)),
@@ -42,11 +46,12 @@ export function exportUnityPrefab() {
         bridgesCol: builtArchipelago.allBridgeColMb
     };
 
-    const MESH_ID = { terrain: 4300001, water: 4300002, trees: 4300003, treesCol: 4300004, grass: 4300005, bridges: 4300006, bridgesCol: 4300007 };
+    const MESH_ID = { terrain: 4300001, water: 4300002, waterVol: 4300008, trees: 4300003, treesCol: 4300004, grass: 4300005, bridges: 4300006, bridgesCol: 4300007 };
     // [オブジェクト名, 表示メッシュ, コライダーメッシュ, 影を落とすか, 基準ID]
     const objects = [
         ['Terrain', 'terrain', 'terrain', 1, 1100],
         ['Water', 'water', null, 0, 1200],
+        ['WaterVolume', 'waterVol', null, 0, 1600],
         ['Trees', 'trees', 'treesCol', 1, 1300],
         ['Grass', 'grass', null, 0, 1400],
         ['Bridges', 'bridges', 'bridgesCol', 1, 1500]
@@ -55,7 +60,7 @@ export function exportUnityPrefab() {
     const ROOT_GO = 1000, ROOT_TR = 1001;
     // StaticEditorFlags: ContributeGI=1, OccluderStatic=2, BatchingStatic=4, OccludeeStatic=16
     // Unityエディターの FloatingTerrainPrefabCreator と同じ設定にする（橋は isStatic=true 相当で全フラグ）
-    const STATIC_FLAGS = { Terrain: 23, Water: 20, Trees: 21, Grass: 20, Bridges: 4294967295 };
+    const STATIC_FLAGS = { Terrain: 23, Water: 20, WaterVolume: 0, Trees: 21, Grass: 20, Bridges: 4294967295 };
     const ROOT_STATIC = 23;
     const COMMON = `  m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -119,7 +124,7 @@ ${COMMON}
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: ${name === 'Water' ? WATER_MATERIAL_GUID : SHARED_MATERIAL_GUID}, type: 2}
+  - {fileID: 2100000, guid: ${name === 'Water' ? WATER_MATERIAL_GUID : name === 'WaterVolume' ? WATER_VOLUME_MATERIAL_GUID : SHARED_MATERIAL_GUID}, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -158,7 +163,7 @@ ${COMMON}
     });
 
     const meshNames = {
-        terrain: 'TerrainMesh', water: 'WaterMesh', trees: 'TreesMesh', treesCol: 'TreesColliderMesh',
+        terrain: 'TerrainMesh', water: 'WaterMesh', waterVol: 'WaterVolumeMesh', trees: 'TreesMesh', treesCol: 'TreesColliderMesh',
         grass: 'GrassMesh', bridges: 'BridgeMesh', bridgesCol: 'BridgeCollider'
     };
     for (const key of usedMeshes) {

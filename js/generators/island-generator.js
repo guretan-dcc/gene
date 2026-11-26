@@ -2257,6 +2257,9 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
     const iceShore = lerpColor(iceBase, palette.snow, 0.55);
     const iceRng = new SeededRandom(islCfg.seed + 97);
 
+    // 水の体積メッシュ（VRChat等で水中に入った時の色付け用）の元になる、水面の三角形 [i0,i1,i2,y0,y1,y2]
+    const volTris = [];
+
     // 水面: 湖と河川を島上面 (inside) の崖縁までに収めて出力（崖外への板状のはみ出しを防ぐ）
     for (let iz = 0; iz < nz - 1; iz++) {
         for (let ix = 0; ix < nx - 1; ix++) {
@@ -2286,6 +2289,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                         upVec, 1.0
                     );
                     waterVertCount += 3;
+                    volTris.push([i0, i1, i2, y0, y1, y2]);
                     continue;
                 }
 
@@ -2300,9 +2304,57 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
                     upVec, 1.0
                 );
                 waterVertCount += 3;
+                volTris.push([i0, i1, i2, riverW[i0], riverW[i1], riverW[i2]]);
             }
         }
     }
+
+    // ---- 7.0b 水の体積メッシュ (水中の色付け用。水面の下を囲む閉じた立体) ----
+    // 上面=水面、下面=川底より少し下、側面=水域の外周だけ(内側の面は作らない)。
+    // 面の数え方(裏面-表面)で「カメラが水の中か」を判定するので、必ず閉じた立体で、巻き方向は外向きにする
+    const waterVolMb = new ColoredMeshBuilder();
+    (function buildWaterVolume() {
+        if (volTris.length === 0) return;
+        const VOL_BED_DROP = 0.40;           // 川底(地形)よりこれだけ下に底面を置く(地形に隠れる)
+        // 同じ格子点は同じ高さにして割れ目のない閉じた立体にする(場所ごとに違う高さを平均)
+        const sumY = new Map(), cntY = new Map();
+        for (const [i0, i1, i2, y0, y1, y2] of volTris) {
+            const ids = [i0, i1, i2], ys = [y0, y1, y2];
+            for (let q = 0; q < 3; q++) {
+                sumY.set(ids[q], (sumY.get(ids[q]) || 0) + ys[q]);
+                cntY.set(ids[q], (cntY.get(ids[q]) || 0) + 1);
+            }
+        }
+        const topY = (i) => Math.max(sumY.get(i) / cntY.get(i), H[i] - VOL_BED_DROP + 0.05);
+        const botY = (i) => H[i] - VOL_BED_DROP;
+        const edgeUse = new Map();   // "小-大" -> { n: 使われた回数, a, b, k: 反対側の頂点, ... }
+        const white = { r: 1, g: 1, b: 1 };
+        const dn = { x: 0, y: -1, z: 0 };
+        for (const [i0, i1, i2] of volTris) {
+            waterVolMb.tri(Pos(i0, topY(i0)), Pos(i1, topY(i1)), Pos(i2, topY(i2)), white, white, white, upVec, 1.0);
+            waterVolMb.tri(Pos(i0, botY(i0)), Pos(i1, botY(i1)), Pos(i2, botY(i2)), white, white, white, dn, 1.0);
+            const ids = [i0, i1, i2];
+            for (let q = 0; q < 3; q++) {
+                const a = ids[q], b = ids[(q + 1) % 3], k = ids[(q + 2) % 3];
+                const key = a < b ? a + '|' + b : b + '|' + a;
+                const e = edgeUse.get(key);
+                if (e) e.n++; else edgeUse.set(key, { n: 1, a, b, k });
+            }
+        }
+        for (const e of edgeUse.values()) {
+            if (e.n !== 1) continue;      // 2回使われた辺は水域の内側
+            const pa = Pos(e.a, 0), pb = Pos(e.b, 0), pk = Pos(e.k, 0);
+            // 辺に垂直で、反対側の頂点から遠ざかる向き(水域の外向き)
+            let ox2 = pa.z - pb.z, oz2 = pb.x - pa.x;
+            const mx = (pa.x + pb.x) * 0.5, mz = (pa.z + pb.z) * 0.5;
+            if (ox2 * (mx - pk.x) + oz2 * (mz - pk.z) < 0) { ox2 = -ox2; oz2 = -oz2; }
+            const out = { x: ox2, y: 0, z: oz2 };
+            waterVolMb.quad(
+                Pos(e.a, topY(e.a)), Pos(e.b, topY(e.b)), Pos(e.b, botY(e.b)), Pos(e.a, botY(e.a)),
+                white, white, white, white, out, 1.0
+            );
+        }
+    })();
 
     // ---- 7.1 河口の滝 (Unity版 `AddWaterfalls` の移植) ----
     // 中心線の河口セルから外周リングを両岸まで辿って川幅いっぱいの滝口(lip)を作り、
@@ -3156,6 +3208,7 @@ export function buildSingleIsland(islCfg, prevCfg, nextCfg, palette) {
         ox, oy, oz,
         terrainMb,
         waterMb,
+        waterVolMb,
         vegMb,
         treesMb,
         grassMb,
