@@ -39,7 +39,7 @@ VS Code の Live Server や GitHub Pages でも動きます。Three.js r128 と 
 
 | ファイル | 部屋 |
 | --- | --- |
-| `bridge.js` | 溶岩にかかる長い橋。柱と梁 |
+| `bridge.js` | 溶岩にかかる長い橋 |
 | `arena.js` | 堀に囲まれた闘技場。奥の階段の上に扉（ボス部屋にも使用） |
 | `shaft.js` | 長いスロープで上り下りする天窓付きの縦穴 |
 | `start.js` | 入口の小部屋 |
