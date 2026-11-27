@@ -122,28 +122,25 @@
       <div class="flex flex-col gap-1.5">
         <span class="text-[11px] text-slate-400">クイックサイズ（部屋数・広さ・1マス幅）</span>
         <div class="grid grid-cols-3 gap-1.5">
-          <button data-size="4,11,2" data-vr-preset="3,12,4" class="quick-size-btn py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-200 font-medium transition">
+          <button data-size="4,11,2" data-vr-preset="3,8,8" class="quick-size-btn py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-200 font-medium transition">
             小
           </button>
-          <button data-size="6,13,2" data-vr-preset="4,14,5" class="quick-size-btn py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-200 font-medium transition">
+          <button data-size="6,13,2" data-vr-preset="4,8,8" class="quick-size-btn py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-200 font-medium transition">
             標準
           </button>
-          <button data-size="8,17,2.5" data-vr-preset="6,18,6" class="quick-size-btn py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-200 font-medium transition">
+          <button data-size="8,17,2.5" data-vr-preset="6,10,10" class="quick-size-btn py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-200 font-medium transition">
             大
           </button>
         </div>
       </div>
 
       <div class="flex items-center justify-between gap-2 text-xs">
-        <label for="tier" class="text-slate-300">アリーナTier演出</label>
-        <select id="tier" class="w-44 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-100 text-xs">
-          <option value="bronze">Bronze（銅・入門）</option>
-          <option value="silver">Silver（銀・標準）</option>
-          <option value="gold" selected>Gold（金・人気帯）</option>
-          <option value="diamond">Diamond（水色・高難度）</option>
-          <option value="titanium">Titanium（白銀紫・激戦）</option>
-          <option value="uranium">Uranium（蛍光緑・極限）</option>
-          <option value="insanium">Insanium（真紅・狂気）</option>
+        <label for="previewRoom" class="text-slate-300">表示する部屋</label>
+        <select id="previewRoom" class="w-44 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-100 text-xs">
+          <option value="all" selected>ステージ全体</option>
+          <option value="bridge">溶岩の橋のみ</option>
+          <option value="arena">闘技場のみ</option>
+          <option value="shaft">縦穴スロープのみ</option>
         </select>
       </div>
 
@@ -159,10 +156,6 @@
         <span id="roomSizeVal" class="w-9 text-right font-mono text-slate-300">13</span>
       </div>
 
-      <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-        <input type="checkbox" id="heightVariation" checked class="rounded border-slate-600 bg-slate-900" />
-        <span>部屋の出口で高低差をつける</span>
-      </label>
 
       <div class="flex items-center gap-2 text-xs">
         <label for="cellSize" class="text-slate-300 w-24 shrink-0">1マス幅 (m)</label>
@@ -182,15 +175,15 @@
 
       <div class="flex items-center gap-2 text-xs">
         <label for="magmaDepth" class="text-amber-300 w-24 shrink-0 font-medium">マグマ深さ(m)</label>
-        <input type="range" id="magmaDepth" min="4" max="40" step="2" value="14" class="flex-1" />
-        <span id="magmaDepthVal" class="w-9 text-right font-mono text-amber-300">14</span>
+        <input type="range" id="magmaDepth" min="4" max="40" step="2" value="8" class="flex-1" />
+        <span id="magmaDepthVal" class="w-9 text-right font-mono text-amber-300">8</span>
       </div>
 
       <div class="flex items-center justify-between gap-2 text-xs">
         <label for="coverBlockSize" class="text-slate-300">遮蔽物Cubeサイズ</label>
         <select id="coverBlockSize" class="w-44 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-100 text-xs">
-          <option value="2" selected>大型Cube (2×2・超ローポリ)</option>
-          <option value="1">標準Cube (1×1)</option>
+          <option value="2">大型Cube (2×2・超ローポリ)</option>
+          <option value="1" selected>標準Cube (1×1)</option>
         </select>
       </div>
 
@@ -202,8 +195,8 @@
 
       <div class="flex items-center gap-2 text-xs">
         <label for="wallHeight" class="text-slate-300 w-24 shrink-0">遮蔽物最大高</label>
-        <input type="range" id="wallHeight" min="1" max="4" step="1" value="2" class="flex-1" />
-        <span id="wallHeightVal" class="w-9 text-right font-mono text-slate-300">2</span>
+        <input type="range" id="wallHeight" min="1" max="4" step="1" value="1" class="flex-1" />
+        <span id="wallHeightVal" class="w-9 text-right font-mono text-slate-300">1</span>
       </div>
 
       <div class="flex items-center gap-2 text-xs">
@@ -214,9 +207,14 @@
 
       <div class="flex items-center gap-2 text-xs">
         <label for="roomWallHeight" class="text-slate-300 w-24 shrink-0">部屋の壁(m)</label>
-        <input type="range" id="roomWallHeight" min="4" max="12" step="1" value="5" class="flex-1" />
-        <span id="roomWallHeightVal" class="w-9 text-right font-mono text-slate-300">5</span>
+        <input type="range" id="roomWallHeight" min="6" max="14" step="1" value="8" class="flex-1" />
+        <span id="roomWallHeightVal" class="w-9 text-right font-mono text-slate-300">8</span>
       </div>
+
+      <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+        <input type="checkbox" id="showDetails" checked class="rounded border-slate-600 bg-slate-900" />
+        <span>柱・梁・壁パネルなどのディテール</span>
+      </label>
 
       <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
         <input type="checkbox" id="showDoors" checked class="rounded border-slate-600 bg-slate-900" />

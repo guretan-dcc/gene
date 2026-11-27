@@ -1,7 +1,6 @@
 // 巨大ソリッドCube Greedy Meshing エンジン（支柱なし・マグマ底まで1枚板）
 import { state, arena } from '../state.js';
-import { VOX } from '../config/constants.js';
-import { getVoxelColor } from '../config/theme.js';
+import { getChunkStyle } from './styles.js';
 import { getLayerHeight, getGridMetrics, isInGrid } from '../core/grid.js';
 import { MeshBuilder } from './MeshBuilder.js';
 
@@ -24,7 +23,7 @@ function countNaiveVoxels(chunkId) {
   let count = 0;
   for (const row of arena.grid) {
     for (const c of row) {
-      if (c.chunkId !== chunkId || c.type === 'pit') continue;
+      if (c.chunkId !== chunkId || c.type === 'pit' || c.thin) continue;
       count += baseDepthLayers + c.height + (c.type === 'pillar' ? c.obstacleH : 0);
     }
   }
@@ -36,13 +35,22 @@ function addFloorTops(mesh, chunkId) {
   const { W, D, S, halfW, halfD } = getGridMetrics();
   const layerH = getLayerHeight();
 
-  for (let h = 0; h <= 3; h++) {
+  // 区画内にある床の標高ごとに処理する
+  const heights = new Set();
+  for (const row of arena.grid) {
+    for (const c of row) {
+      if (c.chunkId === chunkId && c.type !== 'pit' && !c.thin) heights.add(c.height);
+    }
+  }
+  const col = new THREE.Color(getChunkStyle(chunkId).floor);
+
+  for (const h of heights) {
     // 0: 不可/済, 1: 必須描画, 2: ワイルドカード（上に高台や遮蔽物があり隠れる面）
     const mask = Array.from({ length: D }, () => new Uint8Array(W));
     for (let z = 0; z < D; z++) {
       for (let x = 0; x < W; x++) {
         const c = arena.grid[z][x];
-        if (c.chunkId !== chunkId || c.type === 'pit' || c.height < h) continue;
+        if (c.chunkId !== chunkId || c.type === 'pit' || c.thin || c.height < h) continue;
         if (c.height === h && !(c.type === 'pillar' && c.obstacleH > 0)) {
           mask[z][x] = 1;
         } else if (state.noCarveMerge) {
@@ -51,7 +59,6 @@ function addFloorTops(mesh, chunkId) {
       }
     }
 
-    const col = new THREE.Color(getVoxelColor(VOX.FLOOR0 + h));
     const yTop = h * layerH;
 
     for (let z = 0; z < D; z++) {
@@ -105,12 +112,12 @@ function addPlatformSides(mesh, chunkId) {
   const layerH = getLayerHeight();
   const magmaY = -state.magmaDepth;
 
-  const underCol = new THREE.Color(getVoxelColor(VOX.UNDER));
+  const underCol = new THREE.Color(getChunkStyle(chunkId).side);
 
   function getPlatformTopY(x, z) {
     if (!isInGrid(x, z)) return magmaY;
     const c = arena.grid[z][x];
-    if (!c || c.type === 'pit') return magmaY;
+    if (!c || c.type === 'pit' || c.thin) return magmaY;
     return c.height * layerH;
   }
 
@@ -225,7 +232,7 @@ function addCoverBlocks(mesh, chunkId) {
       const z1 = (z + d) * S - halfD;
       const y0 = baseH * layerH;
       const y1 = (baseH + obsH) * layerH;
-      const pCol = new THREE.Color(getVoxelColor(obsH >= 2 ? VOX.PILLAR2 : VOX.PILLAR1));
+      const pCol = new THREE.Color(getChunkStyle(chunkId).cover);
 
       // 天面 + 4側面（底面は床に接するためカリング）
       mesh.addNoBottomBox(x0, x1, y0, y1, z0, z1, pCol);

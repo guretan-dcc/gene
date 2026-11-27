@@ -30,6 +30,12 @@ export class MeshBuilder {
     this.addQuad([x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], [0, 0, -1], color);
   }
 
+  // 6面すべてを持つボックス
+  addBox(x0, x1, y0, y1, z0, z1, color) {
+    this.addNoBottomBox(x0, x1, y0, y1, z0, z1, color);
+    this.addQuad([x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], [0, -1, 0], color);
+  }
+
   // 頂点を追加し、先頭の頂点番号を返す
   addVertices(points, normal, color) {
     const base = this.positions.length / 3;

@@ -4,6 +4,7 @@ import { buildTerrainGeometry } from '../geometry/terrain.js';
 import { buildWallGeometry } from '../geometry/walls.js';
 import { buildPedestalGeometry } from '../geometry/pedestals.js';
 import { buildSlopeGeometry } from '../geometry/slopes.js';
+import { buildDecorGeometry } from '../geometry/decor.js';
 import { buildMagmaGeometry } from '../geometry/magma.js';
 import { view } from './context.js';
 
@@ -25,12 +26,15 @@ export function addStaticMeshes() {
     const wall = buildWallGeometry(chunk.id);
     const pedestal = buildPedestalGeometry(chunk.id);
     const slope = buildSlopeGeometry(chunk.id);
-    const geometries = [terrain.geometry, wall, pedestal, slope];
+    const decor = buildDecorGeometry(chunk.id);
+    const geometries = [terrain.geometry, wall, pedestal, slope, decor.solid, decor.glow];
 
     const terrainMesh = addMesh(group, terrain.geometry);
     addMesh(group, wall);
     const pedestalMesh = addMesh(group, pedestal);
     addMesh(group, slope);
+    addMesh(group, decor.solid);
+    addMesh(group, decor.glow, THREE.MeshBasicMaterial);
     view.pickableMeshes.push(...[terrainMesh, pedestalMesh].filter(Boolean));
 
     return {

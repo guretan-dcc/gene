@@ -2,6 +2,7 @@
 import { state, arena } from '../state.js';
 import { getLayerHeight, getPlayerPadHeight, cellCenterX, cellCenterZ } from '../core/grid.js';
 import { DOOR_HEIGHT } from '../config/constants.js';
+import { ROOMS } from '../rooms/index.js';
 import { showToast } from '../ui/toast.js';
 import { downloadFile } from './download.js';
 import { getExportFilename, getChunkMeshName } from './filename.js';
@@ -13,6 +14,12 @@ function round(value, digits = 3) {
 // グリッド座標と標高(層)をワールド座標へ
 function toPosition(x, z, heightLayers) {
   return { x: round(cellCenterX(x)), y: round(heightLayers * getLayerHeight()), z: round(cellCenterZ(z)) };
+}
+
+// その部屋で最初に触れる溶岩面の高さ
+function getRoomLavaY(room) {
+  const { lavaDepth } = ROOMS[room.layout];
+  return round(lavaDepth ? room.height * getLayerHeight() - lavaDepth : -state.magmaDepth);
 }
 
 // セルを走査して自機・敵・床トラップを集める
@@ -86,6 +93,7 @@ function buildLayoutData() {
     type: r.type,
     layout: r.layout,
     center: toPosition((r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2, r.height),
+    lavaY: getRoomLavaY(r),
     size: { x: round((r.x1 - r.x0 + 1) * state.cellSize), z: round((r.z1 - r.z0 + 1) * state.cellSize) },
     exits: arena.doors.filter(d => d.from === r.id).map(d => d.id)
   }));
@@ -97,7 +105,7 @@ function buildLayoutData() {
     return {
       id: d.id,
       fromRoom: d.from,
-      toRoom: d.to,
+      toRoom: d.to, // null は最後の部屋の出口
       position,
       width: round(d.width * state.cellSize),
       height: DOOR_HEIGHT
@@ -125,7 +133,6 @@ function buildLayoutData() {
 
   return {
     meta: {
-      tier: state.tier,
       gridWidth: state.gridWidth,
       gridDepth: state.gridDepth,
       cellSize: state.cellSize,

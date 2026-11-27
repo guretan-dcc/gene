@@ -21,7 +21,8 @@ VS Code の Live Server や GitHub Pages でも動きます。Three.js r128 と 
 | `index.html` / `css/` | 画面 |
 | `js/main.js` | 起動処理 |
 | `js/state.js` | 設定値と生成データ |
-| `js/config/` | 定数・ティア配色 |
+| `js/config/` | 定数 |
+| `js/rooms/` | 部屋ごとの地形・配色・ディテール |
 | `js/core/` | 乱数・グリッド座標の共通処理 |
 | `js/generation/` | 部屋の並び・地形・彫刻・遮蔽物・敵・トラップの生成 |
 | `js/geometry/` | メッシュ生成（PLY出力と共用） |
@@ -32,10 +33,18 @@ VS Code の Live Server や GitHub Pages でも動きます。Three.js r128 と 
 
 ## ステージ構造
 
-- 入口の部屋から最奥のボス部屋まで一本道です。部屋は左右にずれ、通路は途中で折れます。
-- 戦闘部屋の地形は `terraces`（左右の高台）/ `dais`（中央の高台）/ `bridge`（溶岩の橋）/ `islands`（2本の橋と中央の島）/ `ridge`（丘越え）/ `zigzag`（蛇行）の6種類で、一巡するまで重複しません。
-- 地形の追加は `js/generation/layouts.js` に関数を足して `COMBAT_LAYOUTS` に登録します。
-- 部屋の入口には扉があり、JSON の `doors`（`fromRoom` → `toRoom`）に出力します。扉の開閉処理はゲーム側で実装します。
+入口の部屋から最奥のボス部屋まで一本道です。通路は途中で折れ、各部屋の出口に扉があります。
+
+部屋は1つ1ファイルで、`js/rooms/` にあります。地形(`carve`)・配色(`style`)・寸法(`size`)・高低差(`rise`)・建築ディテール(`decorate`)、必要なら浅い溶岩面の深さ(`lavaDepth`)をまとめて定義します。
+
+| ファイル | 部屋 |
+| --- | --- |
+| `bridge.js` | 溶岩にかかる長い橋。柱と梁 |
+| `arena.js` | 堀に囲まれた闘技場。奥の階段の上に扉（ボス部屋にも使用） |
+| `shaft.js` | 長いスロープで上り下りする天窓付きの縦穴 |
+| `start.js` | 入口の小部屋 |
+
+部屋を追加するときはファイルを作り、`js/rooms/index.js` に登録して、`index.html` の「表示する部屋」にも選択肢を足します。
 
 ## 区画と描画負荷
 

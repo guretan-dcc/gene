@@ -1,19 +1,19 @@
 export const state = {
-  tier: 'gold',
+  previewRoom: 'all',   // 'all' | 'bridge' | 'arena' | 'shaft'
   roomCount: 6,         // 部屋数（入口・ボス部屋を含む）
   roomSize: 13,         // 部屋の幅の目安(マス)
-  heightVariation: true,
   gridWidth: 0,         // 生成時に決まる
   gridDepth: 0,         // 生成時に決まる
   cellSize: 2.0,
   seed: 2048,
-  magmaDepth: 14,       // マグマ面までの垂直距離(m)
-  coverBlockSize: 2,    // 遮蔽物Cubeサイズ (2 = 2x2大型Cube, 1 = 1x1)
+  magmaDepth: 8,        // マグマ面までの垂直距離(m)
+  coverBlockSize: 1,    // 遮蔽物Cubeサイズ (2 = 2x2大型Cube, 1 = 1x1)
   coverDensity: 0.08,
-  wallHeight: 2,
+  wallHeight: 1,
   magmaMargin: 90,
   showDoors: true,
-  roomWallHeight: 5,    // 部屋の壁の高さ(m)
+  showDetails: true,    // 柱・梁・壁パネルなどの建築ディテール
+  roomWallHeight: 8,    // 部屋の壁の高さ(m)
   autoTraps: false,
   jumpPadCount: 6,
   sawCount: 4,

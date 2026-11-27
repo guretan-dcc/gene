@@ -4,7 +4,7 @@ import { createRng } from '../core/random.js';
 import { getPlayerCoord } from '../core/grid.js';
 import { createRoomPlan, CORRIDOR_HALF } from './roomPlan.js';
 import { createEmptyGrid, carveRoom, carveCorridor } from './carver.js';
-import { buildChunks } from './chunks.js';
+import { buildChunks, getLinks } from './chunks.js';
 import { placeCoverBlocks } from './cover.js';
 import { assignEnemySpawns } from './enemies.js';
 import { assignTraps } from './traps.js';
@@ -19,17 +19,17 @@ export function generateArena() {
   arena.grid = grid;
   arena.rooms = rooms;
   arena.slopes = rooms.flatMap(room => carveRoom(grid, room));
-  // 扉は通路が次の部屋へ入る境目に置く
-  arena.doors = rooms.slice(1).map((to, id) => ({
+  // 扉は各部屋の出口に置く（最後の部屋の扉は接続先なし）
+  arena.doors = rooms.map((from, id) => ({
     id,
-    from: to.id - 1,
-    to: to.id,
-    x: to.centerX,
-    z: to.z1 + 1, // この行の奥側の辺が扉の位置
+    from: from.id,
+    to: id + 1 < rooms.length ? id + 1 : null,
+    x: from.centerX,
+    z: from.z0, // この行の奥側の辺が扉の位置
     width: CORRIDOR_HALF * 2 + 1,
-    height: to.height
+    height: from.exitHeight
   }));
-  arena.doors.forEach(d => carveCorridor(grid, rooms.length + d.id, rooms[d.from], rooms[d.to]));
+  getLinks().forEach(d => carveCorridor(grid, rooms.length + d.id, rooms[d.from], rooms[d.to]));
   buildChunks();
 
   placeCoverBlocks(rng);

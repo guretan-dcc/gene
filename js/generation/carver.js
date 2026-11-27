@@ -1,6 +1,6 @@
 // グリッドの初期化と、部屋・通路を彫る操作
 import { cellKey } from '../core/grid.js';
-import { LAYOUTS } from './layouts.js';
+import { ROOMS } from '../rooms/index.js';
 import { CORRIDOR_HALF } from './roomPlan.js';
 
 export function createEmptyGrid(W, D) {
@@ -8,8 +8,9 @@ export function createEmptyGrid(W, D) {
     Array.from({ length: W }, (_, x) => ({
       x, z,
       type: 'pit',     // 'pit' | 'floor' | 'elevated' | 'pillar'
-      height: 0,       // 0..3 (床の標高)
+      height: 0,       // 床の標高(層)。長いスロープ上は小数
       obstacleH: 0,    // 遮蔽物の層数
+      thin: false,
       roomId: null,    // 所属する部屋（通路は null）
       chunkId: null,   // 描画区画（部屋または通路）。区画外は null
       spawn: 'none',   // 'none' | 'player' | 'melee' | 'ranged'
@@ -20,6 +21,7 @@ export function createEmptyGrid(W, D) {
 }
 
 function setFloor(cell, height) {
+  cell.thin = false; // true は下が空いたスロープ板
   cell.type = height > 0 ? 'elevated' : 'floor';
   cell.height = height;
 }
@@ -50,41 +52,42 @@ export function carveRoom(grid, room) {
     forEach(u0, u1, v0, v1, cell => {
       cell.type = 'pit';
       cell.height = 0;
+      cell.thin = false;
       slopes.delete(cellKey(cell.x, cell.z));
     });
   }
 
-  function addSlope(cell, dirX, dirZ, lowH) {
+  // rise の向きに上り下りするスロープを1マス置く
+  function addSlope(cell, from, to, extra) {
+    const lowH = Math.min(from, to);
     setFloor(cell, lowH);
-    slopes.set(cellKey(cell.x, cell.z), { x: cell.x, z: cell.z, dirX, dirZ, lowH, highH: lowH + 1 });
+    slopes.set(cellKey(cell.x, cell.z), {
+      x: cell.x, z: cell.z, dirX: 0, dirZ: to > from ? -1 : 1, lowH, highH: Math.max(from, to), ...extra
+    });
   }
 
-  // 奥行き方向の1段スロープ。toward は上る向き ('far' | 'near')
-  function ramp(u0, u1, v, toward) {
-    forEach(u0, u1, v, v, cell => addSlope(cell, 0, toward === 'far' ? -1 : 1, room.height));
+  // 1段分の階段（見た目は段、歩行はスロープ扱い）
+  function stairs(u0, u1, v, rise) {
+    forEach(u0, u1, v, v, cell => addSlope(cell, room.height, room.height + rise, { stairs: true }));
   }
 
-  // 左右方向の1段スロープ。dirX は上る向き
-  function sideRamp(u, v0, v1, dirX) {
-    forEach(u, u, v0, v1, cell => addSlope(cell, dirX, 0, room.height));
+  // v0..v1 をかけて rise 層上り下りする、下が空いた長いスロープ
+  function longRamp(u0, u1, v0, v1, rise) {
+    const length = v1 - v0 + 1;
+    const heightAt = i => room.height + (rise * i) / length;
+    for (let i = 0; i < length; i++) {
+      forEach(u0, u1, v0 + i, v0 + i, cell => {
+        addSlope(cell, heightAt(i), heightAt(i + 1), { thin: true });
+        cell.thin = true;
+      });
+    }
   }
 
   forEach(-hw, hw, 0, d - 1, cell => {
     cell.roomId = room.id;
     cell.chunkId = room.id;
   });
-  LAYOUTS[room.layout]({ hw, d, mid: Math.floor((d - 3) / 2) }, { floor, pit, ramp, sideRamp });
-  applyExitStep();
-
-  // 出口の高さが違う場合は、奥3行をまとめて上げ下げしてスロープでつなぐ
-  function applyExitStep() {
-    const rise = room.exitHeight - room.height;
-    if (rise === 0) return;
-    floor(-hw, hw, d - 3, d - 1, rise);
-    forEach(-hw, hw, d - 4, d - 4, cell => {
-      if (cell.type !== 'pit') addSlope(cell, 0, rise > 0 ? -1 : 1, Math.min(room.height, room.exitHeight));
-    });
-  }
+  ROOMS[room.layout].carve({ hw, d, rise: room.exitHeight - room.height }, { floor, pit, stairs, longRamp });
 
   return [...slopes.values()];
 }

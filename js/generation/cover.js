@@ -1,10 +1,11 @@
 // 戦闘部屋の遮蔽物（左右対称）。出入口付近を空け、歩ける場所が分断されない位置にだけ置く
 import { state, arena } from '../state.js';
+import { ROOMS } from '../rooms/index.js';
 import { isCombatRoom, isWalkable, canTraverse, cellKey, toCellKeySet } from '../core/grid.js';
 
 export function placeCoverBlocks(rng) {
   const slopeKeys = toCellKeySet(arena.slopes);
-  arena.rooms.filter(isCombatRoom).forEach(room => placeInRoom(room, rng, slopeKeys));
+  arena.rooms.filter(r => isCombatRoom(r) && ROOMS[r.layout].hasCover).forEach(room => placeInRoom(room, rng, slopeKeys));
 }
 
 function placeInRoom(room, rng, slopeKeys) {

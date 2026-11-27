@@ -1,7 +1,8 @@
 // 部屋と通路を囲む内向きの壁（外側からは裏面カリングで中が見える）
 import { state, arena } from '../state.js';
-import { VOX, DOOR_HEIGHT } from '../config/constants.js';
-import { getVoxelColor } from '../config/theme.js';
+import { DOOR_HEIGHT } from '../config/constants.js';
+import { getChunkStyle } from './styles.js';
+import { getChunkTopY } from './bounds.js';
 import { getLayerHeight, getGridMetrics, isInGrid } from '../core/grid.js';
 import { MeshBuilder } from './MeshBuilder.js';
 
@@ -15,23 +16,9 @@ const SIDES = [
 
 export function buildWallGeometry(chunkId) {
   const mesh = new MeshBuilder();
-  const color = new THREE.Color(getVoxelColor(VOX.FLOOR1));
+  const color = new THREE.Color(getChunkStyle(chunkId).wall);
   for (const side of SIDES) addSideWalls(mesh, chunkId, side, color);
   return mesh.build();
-}
-
-// 区画の天井高さ: 部屋は一番高い床＋壁の高さ、通路は床＋扉の高さ
-function getChunkTopY(chunk) {
-  const layerH = getLayerHeight();
-  if (chunk.kind === 'room') {
-    const room = arena.rooms[chunk.roomId];
-    let highest = Math.max(room.height, room.exitHeight);
-    for (let z = room.z0; z <= room.z1; z++) {
-      for (let x = room.x0; x <= room.x1; x++) highest = Math.max(highest, arena.grid[z][x].height);
-    }
-    return highest * layerH + state.roomWallHeight;
-  }
-  return arena.doors[chunk.doorId].height * layerH + DOOR_HEIGHT;
 }
 
 // そのセルの辺に必要な壁の下端（不要なら null）
@@ -39,7 +26,7 @@ function getWallBottom(chunk, x, z, { dx, dz }) {
   const cell = arena.grid[z][x];
   if (cell.chunkId !== chunk.id) return null;
   // 溶岩の上は水面（マグマ面）まで壁を下ろす
-  const floorY = cell.type === 'pit' ? -state.magmaDepth : cell.height * getLayerHeight();
+  const floorY = (cell.type === 'pit' || cell.thin) ? -state.magmaDepth : cell.height * getLayerHeight();
   const next = isInGrid(x + dx, z + dz) ? arena.grid[z + dz][x + dx] : null;
 
   if (!next || next.chunkId === null) return floorY;      // 外側: 床から天井まで

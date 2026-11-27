@@ -1,7 +1,8 @@
 import { state, arena } from '../state.js';
 
 export function getExportFilename(extension) {
-  return `stage_rooms${state.roomCount}_${state.seed}.${extension}`;
+  const name = state.previewRoom === 'all' ? `rooms${state.roomCount}` : state.previewRoom;
+  return `stage_${name}_${state.seed}.${extension}`;
 }
 
 // 分割書き出し時の区画ごとのPLY名

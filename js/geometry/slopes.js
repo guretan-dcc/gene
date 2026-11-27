@@ -1,14 +1,18 @@
 // ローポリ幅広スロープジオメトリ（並列スロープを自動結合し4三角形/基）
 import { arena } from '../state.js';
-import { PALETTE } from '../config/constants.js';
+import { getChunkStyle } from './styles.js';
 import { getLayerHeight, getGridMetrics, cellKey } from '../core/grid.js';
 import { MeshBuilder } from './MeshBuilder.js';
+
+const SLAB_THICKNESS = 0.45;
+const STEP_COUNT = 5;
 
 export function buildSlopeGeometry(chunkId) {
   const { S, halfW, halfD } = getGridMetrics();
   const layerH = getLayerHeight();
   const mesh = new MeshBuilder();
-  const col = new THREE.Color(PALETTE.slope);
+  const style = getChunkStyle(chunkId);
+  const col = new THREE.Color(style.ramp || style.floor);
 
   // 隣り合う同向き・同標高のスロープを1つの幅広ウェッジへ結合してポリゴン削減
   const slopes = arena.slopes.filter(sl => arena.grid[sl.z][sl.x].chunkId === chunkId);
@@ -25,7 +29,7 @@ export function buildSlopeGeometry(chunkId) {
     const canMerge = (x, z) => {
       const nb = slopeMap.get(cellKey(x, z));
       return Boolean(nb) && !visited.has(cellKey(x, z)) &&
-        nb.dirX === sl.dirX && nb.dirZ === sl.dirZ && nb.lowH === sl.lowH && nb.highH === sl.highH;
+        nb.dirX === sl.dirX && nb.dirZ === sl.dirZ && nb.lowH === sl.lowH && nb.highH === sl.highH && nb.thin === sl.thin && nb.stairs === sl.stairs;
     };
 
     let minX = sl.x, maxX = sl.x;
@@ -73,13 +77,49 @@ export function buildSlopeGeometry(chunkId) {
       bA = [x0, yL, z1]; bB = [x0, yL, z0];
     }
 
-    // 傾斜上面（2三角形）
-    mesh.addTriangle(lA, lB, hB, col);
-    mesh.addTriangle(lA, hB, hA, col);
-    // 両側面（各1三角形＝計2三角形）
-    mesh.addTriangle(lA, hA, bA, col);
-    mesh.addTriangle(lB, bB, hB, col);
+    if (sl.stairs) addSteps(mesh, [lA, lB, hA, hB], yH, col);
+    else if (sl.thin) addSlab(mesh, [lA, lB, hA, hB], col, new THREE.Color(style.trim));
+    else addWedge(mesh, [lA, lB, hA, hB, bA, bB], col);
   }
 
   return mesh.build();
+}
+
+// 楔形: 傾斜上面（2三角形）＋両側面（各1三角形）
+function addWedge(mesh, [lA, lB, hA, hB, bA, bB], color) {
+  mesh.addTriangle(lA, lB, hB, color);
+  mesh.addTriangle(lA, hB, hA, color);
+  mesh.addTriangle(lA, hA, bA, color);
+  mesh.addTriangle(lB, bB, hB, color);
+}
+
+// 下が空いた板
+function addSlab(mesh, [lA, lB, hA, hB], color, edgeColor) {
+  const down = p => [p[0], p[1] - SLAB_THICKNESS, p[2]];
+  const quad = (a, b, c, d, col) => {
+    mesh.addTriangle(a, b, c, col);
+    mesh.addTriangle(a, c, d, col);
+  };
+  quad(lA, lB, hB, hA, color);
+  quad(down(lA), down(hA), down(hB), down(lB), edgeColor);
+  quad(lA, hA, down(hA), down(lA), edgeColor);
+  quad(lB, down(lB), down(hB), hB, edgeColor);
+}
+
+// 低い側から高い側へ向かう段
+function addSteps(mesh, [lA, lB, hA], yH, color) {
+  const yL = lA[1];
+  for (let i = 0; i < STEP_COUNT; i++) {
+    const at = (a, b, t) => a + (b - a) * t;
+    const t0 = i / STEP_COUNT;
+    const t1 = (i + 1) / STEP_COUNT;
+    const xs = [lA[0], lB[0], at(lA[0], hA[0], t0), at(lA[0], hA[0], t1)];
+    const zs = [lA[2], lB[2], at(lA[2], hA[2], t0), at(lA[2], hA[2], t1)];
+    // 進行方向の軸だけ段ごとの範囲を使う
+    const alongX = lA[0] !== hA[0];
+    const xRange = alongX ? xs.slice(2) : [lA[0], lB[0]];
+    const zRange = alongX ? [lA[2], lB[2]] : zs.slice(2);
+    mesh.addNoBottomBox(Math.min(...xRange), Math.max(...xRange), yL, at(yL, yH, t1),
+      Math.min(...zRange), Math.max(...zRange), color);
+  }
 }
