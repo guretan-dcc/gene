@@ -1,6 +1,7 @@
 // 配置JSON書き出し
 import { state, arena } from '../state.js';
 import { getLayerHeight, getPlayerPadHeight, cellCenterX, cellCenterZ } from '../core/grid.js';
+import { DOOR_HEIGHT } from '../render/doors.js';
 import { showToast } from '../ui/toast.js';
 import { downloadFile } from './download.js';
 import { getExportFilename } from './filename.js';
@@ -55,7 +56,7 @@ function collectCells() {
           floorY,
           pedestalHeight: pedH,
           role: cell.spawn,
-          wave: cell.wave || 1
+          roomId: cell.roomId
         });
       }
 
@@ -80,6 +81,30 @@ function buildLayoutData() {
     speed: round(s.speed, 2)
   }));
 
+  const rooms = arena.rooms.map(r => ({
+    id: r.id,
+    layer: r.layer,
+    lane: r.lane,
+    type: r.type,
+    center: toPosition((r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2, r.height),
+    size: { x: round((r.x1 - r.x0 + 1) * state.cellSize), z: round((r.z1 - r.z0 + 1) * state.cellSize) },
+    exits: arena.doors.filter(d => d.from === r.id).map(d => d.id)
+  }));
+
+  // 扉は from の部屋をクリアすると開く想定
+  const doors = arena.doors.map(d => {
+    const position = toPosition(d.x, d.z, d.height);
+    position.z = round(position.z - state.cellSize / 2);
+    return {
+      id: d.id,
+      fromRoom: d.from,
+      toRoom: d.to,
+      position,
+      width: round(d.width * state.cellSize),
+      height: DOOR_HEIGHT
+    };
+  });
+
   const slopes = arena.slopes.map(sl => ({
     gridX: sl.x,
     gridZ: sl.z,
@@ -91,10 +116,8 @@ function buildLayoutData() {
 
   return {
     meta: {
-      preset: state.preset,
       chamberShape: state.chamberShape,
       tier: state.tier,
-      symmetry: state.symmetry,
       gridWidth: state.gridWidth,
       gridDepth: state.gridDepth,
       cellSize: state.cellSize,
@@ -105,6 +128,8 @@ function buildLayoutData() {
       outerWallHeightLayers: state.outerWallEnabled ? state.outerWallHeight : 0,
       seed: state.seed
     },
+    rooms,
+    doors,
     playerSpawn,
     enemySpawns,
     slopes,

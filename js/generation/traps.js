@@ -1,7 +1,7 @@
 // トラップ自動配置（ノコギリ → ジャンプパッド → コンベア → 炎・スパイクの順）
 import { state, arena } from '../state.js';
 import { shuffle } from '../core/random.js';
-import { getPlayerCoord, isInGrid, isWalkable, cellKey, toCellKeySet } from '../core/grid.js';
+import { isInGrid, isWalkable, isCombatRoom, cellKey } from '../core/grid.js';
 
 const NEIGHBOR_DIRS = [
   { x: 1, z: 0 },
@@ -33,18 +33,15 @@ function clearTraps() {
   arena.sawTracks = [];
 }
 
+// トラップは戦闘部屋の中だけ（出入口に接する行は除く）
 function createTrapFreeChecker() {
-  const pCoord = getPlayerCoord();
-  const slopeSet = toCellKeySet(arena.slopes);
-
   return function isTrapFreeCell(x, z) {
     if (!isInGrid(x, z)) return false;
     const c = arena.grid[z][x];
-    if (!isWalkable(c)) return false;
-    if (c.spawn !== 'none' || c.trap !== 'none') return false;
-    if (slopeSet.has(cellKey(x, z))) return false;
-    if (Math.hypot(x - pCoord.x, z - pCoord.z) < 3) return false;
-    return true;
+    if (!isWalkable(c) || c.roomId === null) return false;
+    const room = arena.rooms[c.roomId];
+    if (!isCombatRoom(room) || z <= room.z0 || z >= room.z1) return false;
+    return c.spawn === 'none' && c.trap === 'none';
   };
 }
 

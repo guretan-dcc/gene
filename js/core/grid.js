@@ -46,13 +46,7 @@ export function cellKey(x, z) {
   return `${x},${z}`;
 }
 
-// 現在のスロープが乗っているセルのキー集合
-export function toCellKeySet(cells) {
-  return new Set(cells.map(c => cellKey(c.x, c.z)));
-}
-
-// 奥へ進むほど後のウェーブになる (1 | 2 | 3)
-export function getWaveForRow(z) {
-  const progress = 1 - (z / Math.max(1, state.gridDepth - 1));
-  return progress < 0.38 ? 1 : (progress < 0.72 ? 2 : 3);
+// 敵やトラップを置く部屋か
+export function isCombatRoom(room) {
+  return room.type === 'combat' || room.type === 'boss';
 }

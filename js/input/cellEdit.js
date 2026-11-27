@@ -1,6 +1,6 @@
 // クリック編集（敵スポーン / トラップ配置）
 import { state, arena } from '../state.js';
-import { getGridMetrics, isInGrid, isWalkable, getWaveForRow } from '../core/grid.js';
+import { getGridMetrics, isInGrid, isWalkable } from '../core/grid.js';
 import { view } from '../render/context.js';
 import { rebuildScene } from '../render/rebuildScene.js';
 
@@ -30,9 +30,6 @@ function cycleSpawn(cell) {
   cell.spawn = SPAWN_CYCLE[cell.spawn] || 'none';
   if (cell.spawn !== 'none') {
     cell.trap = 'none';
-    cell.wave = getWaveForRow(cell.z);
-  } else {
-    cell.wave = 0;
   }
 }
 
@@ -40,7 +37,6 @@ function cycleTrap(cell) {
   cell.trap = TRAP_CYCLE[cell.trap] || 'none';
   if (cell.trap !== 'none') {
     cell.spawn = 'none';
-    cell.wave = 0;
     cell.trapDir = { x: 0, z: -1 };
   }
 }

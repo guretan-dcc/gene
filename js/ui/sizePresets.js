@@ -7,9 +7,9 @@ import { resetCameraOverview, setCameraVREyeView } from '../camera/views.js';
 import { showToast } from './toast.js';
 
 // data-size と data-vr-preset の値の並び順
-const SIZE_KEYS = ['gridWidth', 'gridDepth', 'cellSize'];
+const SIZE_KEYS = ['roomLayers', 'branchCount', 'roomSize', 'corridorLength', 'cellSize'];
 // スケールに応じて連動調整する項目
-const VR_PRESET_KEYS = ['safeRadius', 'enemyCount', 'magmaDepth', 'chasmGap', 'outerWallHeight'];
+const VR_PRESET_KEYS = ['enemiesPerRoom', 'magmaDepth', 'chasmGap', 'outerWallHeight'];
 
 // カンマ区切りの値を state と入力欄の両方へ反映
 function applyValues(keys, csv) {
@@ -34,8 +34,7 @@ function applySizePreset(btn) {
   }
 
   const { gridWidth: w, gridDepth: d, cellSize: s } = state;
-  const sec = ((d * s) / 10).toFixed(1);
-  showToast(`サイズ変更: ${w}×${d} (${(w * s).toFixed(0)}m×${(d * s).toFixed(0)}m / 弾速10m/sで約${sec}秒)`);
+  showToast(`サイズ変更: ${(w * s).toFixed(0)}m×${(d * s).toFixed(0)}m`);
 }
 
 export function bindSizePresets() {

@@ -3,6 +3,7 @@ import { state } from '../state.js';
 import { createRng } from '../core/random.js';
 import { generateArena } from '../generation/generateArena.js';
 import { assignEnemySpawns } from '../generation/enemies.js';
+import { assignTraps } from '../generation/traps.js';
 import { rebuildScene } from '../render/rebuildScene.js';
 import { camCtrl } from '../camera/cameraState.js';
 import { resetCameraOverview, setCameraPlayerView, setCameraVREyeView } from '../camera/views.js';
@@ -56,6 +57,7 @@ export function bindUI() {
   });
   onClick('btnRespawnEnemies', () => {
     assignEnemySpawns(createRng(Date.now() & 0xffff));
+    assignTraps(createRng(state.seed + 1337)); // トラップは新しい敵位置を避けて置き直す
     rebuildScene();
     showToast('敵スポーン位置を再抽選しました');
   });

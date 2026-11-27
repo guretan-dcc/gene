@@ -1,37 +1,41 @@
-// アリーナ・グリッド生成（非矩形・通路連結・多段高低差＆幅広スロープ）
+// ステージ生成（部屋グラフ → 彫刻 → 遮蔽物 → 敵・トラップ）
 import { state, arena } from '../state.js';
 import { createRng } from '../core/random.js';
-import { createEmptyGrid, createCarver } from './carver.js';
-import { LAYOUTS, gauntlet } from './layouts/index.js';
+import { getPlayerCoord } from '../core/grid.js';
+import { createRoomGraph, getStageDimensions, CORRIDOR_HALF } from './roomGraph.js';
+import { createEmptyGrid, carveRoom, carveCorridor } from './carver.js';
 import { placeCoverBlocks } from './cover.js';
-import { ensurePlayerStart } from './playerStart.js';
-import { generateSlopes } from './slopes.js';
 import { assignEnemySpawns } from './enemies.js';
 import { assignTraps } from './traps.js';
 
 export function generateArena() {
-  const W = state.gridWidth;
-  const D = state.gridDepth;
+  const { width, depth } = getStageDimensions();
+  state.gridWidth = width;
+  state.gridDepth = depth;
+
   const rng = createRng(state.seed);
+  const { rooms, links } = createRoomGraph(rng);
+  const grid = createEmptyGrid(width, depth);
 
-  // 全セルを「深いマグマ谷(pit)」で初期化し、部屋・通路・高台を彫刻して非矩形シルエットを作る
-  const grid = createEmptyGrid(W, D);
-  const carver = createCarver(grid, W, D);
-
-  // ステップ1: プリセット別の非矩形・立体通路レイアウト彫刻
-  const carveLayout = LAYOUTS[state.preset] || gauntlet;
-  carveLayout({ W, D, cx: Math.floor(W / 2), cz: Math.floor(D / 2), rng }, carver);
-
-  // ステップ2: 遮蔽物の配置 / ステップ3: 自機スタート位置の確保
-  placeCoverBlocks(grid, carver.rampKeys, rng);
-  ensurePlayerStart(grid, carver);
-
-  // 生成結果を反映してから後続処理を実行
+  rooms.forEach(room => carveRoom(grid, room));
+  arena.slopes = links.flatMap(link => carveCorridor(grid, link, rooms[link.from], rooms[link.to]));
   arena.grid = grid;
-  arena.slopes = carver.slopes;
+  arena.rooms = rooms;
+  // 扉は通路が次の部屋へ入る境目に置く
+  arena.doors = links.map(link => ({
+    id: link.id,
+    from: link.from,
+    to: link.to,
+    x: link.x,
+    z: rooms[link.to].z1 + 1, // この行の奥側の辺が扉の位置
+    width: CORRIDOR_HALF * 2 + 1,
+    height: rooms[link.to].height
+  }));
 
-  // ステップ4: 追加スロープ補完・敵スポーン・トラップを順次配置
-  generateSlopes(createRng(state.seed + 313));
+  placeCoverBlocks(rng);
+  const start = getPlayerCoord();
+  grid[start.z][start.x].spawn = 'player';
+
   assignEnemySpawns(createRng(state.seed + 777));
   assignTraps(createRng(state.seed + 1337));
 }

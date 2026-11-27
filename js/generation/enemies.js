@@ -1,48 +1,32 @@
-// 敵スポーン自動配置
+// 敵スポーン自動配置（戦闘部屋とボス部屋のみ）
 import { state, arena } from '../state.js';
 import { shuffle } from '../core/random.js';
-import { getPlayerCoord, isWalkable, cellKey, toCellKeySet, getWaveForRow } from '../core/grid.js';
+import { isCombatRoom, isWalkable } from '../core/grid.js';
 
 export function assignEnemySpawns(rng) {
-  const W = state.gridWidth;
-  const D = state.gridDepth;
-  const pCoord = getPlayerCoord();
-  const slopeSet = toCellKeySet(arena.slopes);
-
-  const candidates = [];
-  for (let z = 0; z < D; z++) {
-    for (let x = 0; x < W; x++) {
-      const c = arena.grid[z][x];
-      if (c.spawn !== 'player') {
-        c.spawn = 'none';
-        c.wave = 0;
-      }
-      if (!isWalkable(c) || c.spawn === 'player') continue;
-      if (slopeSet.has(cellKey(x, z))) continue;
-
-      const dist = Math.hypot(x - pCoord.x, z - pCoord.z);
-      if (dist >= state.safeRadius) {
-        candidates.push(c);
-      }
+  for (const row of arena.grid) {
+    for (const cell of row) {
+      if (cell.spawn !== 'player') cell.spawn = 'none';
     }
   }
+  arena.rooms.filter(isCombatRoom).forEach(room => spawnInRoom(room, rng));
+}
 
+function spawnInRoom(room, rng) {
+  const candidates = [];
+  // 入口側の3行には配置しない（扉を抜けた直後の安全地帯）
+  for (let z = room.z0; z <= room.z1 - 3; z++) {
+    for (let x = room.x0; x <= room.x1; x++) {
+      const cell = arena.grid[z][x];
+      if (isWalkable(cell)) candidates.push(cell);
+    }
+  }
   shuffle(candidates, rng);
 
-  const targetCount = Math.min(state.enemyCount, candidates.length);
-  for (let i = 0; i < targetCount; i++) {
-    const cell = candidates[i];
-    const isHighOrFar = cell.height >= 1 || cell.z <= Math.floor(D * 0.25) || cell.x <= 1 || cell.x >= W - 2;
-
-    // 高台や奥・端寄りは遠距離ロールを優先し、平地は近接ロールを主体に配置
-    if (isHighOrFar && rng() < 0.65) {
-      cell.spawn = 'ranged';
-    } else if (!isHighOrFar && rng() < 0.20) {
-      cell.spawn = 'ranged';
-    } else {
-      cell.spawn = 'melee';
-    }
-
-    cell.wave = getWaveForRow(cell.z);
+  const wanted = room.type === 'boss' ? Math.ceil(state.enemiesPerRoom * 1.5) : state.enemiesPerRoom;
+  for (const cell of candidates.slice(0, wanted)) {
+    // 奥や左右の端は遠距離、それ以外は近接を主体にする
+    const isBackOrEdge = cell.z <= room.z0 + 1 || cell.x <= room.x0 + 1 || cell.x >= room.x1 - 1;
+    cell.spawn = rng() < (isBackOrEdge ? 0.65 : 0.2) ? 'ranged' : 'melee';
   }
 }

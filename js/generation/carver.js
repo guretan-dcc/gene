@@ -1,5 +1,5 @@
-// グリッドの初期化と、足場・部屋・計画スロープを彫る操作
-import { cellKey } from '../core/grid.js';
+// グリッドの初期化と、部屋・通路・スロープを彫る操作
+import { CORRIDOR_HALF } from './roomGraph.js';
 
 export function createEmptyGrid(W, D) {
   return Array.from({ length: D }, (_, z) =>
@@ -8,87 +8,49 @@ export function createEmptyGrid(W, D) {
       type: 'pit',     // 'pit' | 'floor' | 'elevated' | 'pillar'
       height: 0,       // 0..3 (床の標高)
       obstacleH: 0,    // 遮蔽物の層数
+      roomId: null,    // 所属する部屋（通路は null）
       spawn: 'none',   // 'none' | 'player' | 'melee' | 'ranged'
-      wave: 0,         // 1 | 2 | 3
       trap: 'none',    // 'none' | 'jumppad' | 'fire' | 'spike' | 'conveyor'
       trapDir: { x: 0, z: -1 }
     }))
   );
 }
 
-export function createCarver(grid, W, D) {
-  const slopes = [];          // 計画スロープ
-  const rampKeys = new Set(); // 計画スロープがあるセル
+function setFloor(cell, height, roomId = null) {
+  cell.type = height > 0 ? 'elevated' : 'floor';
+  cell.height = height;
+  cell.roomId = roomId;
+}
 
-  // セルを指定標高の足場にする
-  function setFloor(x, z, h) {
-    grid[z][x].type = h > 0 ? 'elevated' : 'floor';
-    grid[z][x].height = h;
-    grid[z][x].obstacleH = 0;
+export function carveRoom(grid, room) {
+  for (let z = room.z0; z <= room.z1; z++) {
+    for (let x = room.x0; x <= room.x1; x++) {
+      setFloor(grid[z][x], room.height, room.id);
+    }
   }
+}
 
-  function setFloorRect(x0, z0, x1, z1, h = 0) {
-    const minX = Math.max(0, Math.min(x0, x1));
-    const maxX = Math.min(W - 1, Math.max(x0, x1));
-    const minZ = Math.max(0, Math.min(z0, z1));
-    const maxZ = Math.min(D - 1, Math.max(z0, z1));
-    for (let z = minZ; z <= maxZ; z++) {
-      for (let x = minX; x <= maxX; x++) {
-        setFloor(x, z, h);
+// 手前の部屋(from)から奥の部屋(to)への通路。段差は途中のスロープでつなぐ。追加したスロープを返す
+export function carveCorridor(grid, link, from, to) {
+  const slopes = [];
+  const rise = to.height - from.height;
+  const steps = Math.abs(rise);
+  const zNear = from.z0 - 1;
+  const zFar = to.z1 + 1;
+  const rampStart = zNear - 1; // 両端に平らな踊り場を残す
+
+  for (let z = zNear; z >= zFar; z--) {
+    const s = rampStart - z; // スロープ何段目か
+    const onRamp = s >= 0 && s < steps;
+    let height = s < 0 ? from.height : to.height;
+    if (onRamp) height = rise > 0 ? from.height + s : from.height - s - 1;
+
+    for (let x = link.x - CORRIDOR_HALF; x <= link.x + CORRIDOR_HALF; x++) {
+      setFloor(grid[z][x], height);
+      if (onRamp) {
+        slopes.push({ x, z, dirX: 0, dirZ: rise > 0 ? -1 : 1, lowH: height, highH: height + 1 });
       }
     }
   }
-
-  function setOctaRoom(rcx, rcz, rx, rz, h = 0) {
-    const cut = Math.max(1, Math.floor(Math.min(rx, rz) * 0.45));
-    for (let z = Math.max(0, rcz - rz); z <= Math.min(D - 1, rcz + rz); z++) {
-      for (let x = Math.max(0, rcx - rx); x <= Math.min(W - 1, rcx + rx); x++) {
-        const dx = Math.abs(x - rcx);
-        const dz = Math.abs(z - rcz);
-        if (dx + dz <= rx + rz - cut) {
-          setFloor(x, z, h);
-        }
-      }
-    }
-  }
-
-  // 指定セルに計画スロープを登録（足場ベースもlowHで確保）
-  function addPlannedRamp(x, z, dirX, dirZ, lowH) {
-    if (x < 0 || x >= W || z < 0 || z >= D) return;
-    const key = cellKey(x, z);
-    if (rampKeys.has(key)) return;
-    setFloor(x, z, lowH);
-    slopes.push({ x, z, dirX, dirZ, lowH, highH: lowH + 1 });
-    rampKeys.add(key);
-  }
-
-  // 幅広スロープ帯を設置（例：z方向に段差を登る/下る幅3マスの連続スロープ）
-  function addWideZRamp(x0, x1, zLow, dirZ, fromH, toH) {
-    const steps = Math.abs(toH - fromH);
-    const stepDir = toH > fromH ? 1 : -1;
-    // dirZ: -1(奥へ進む) または +1(手前へ進む)
-    for (let s = 0; s < steps; s++) {
-      const z = zLow + dirZ * s;
-      const lowH = stepDir > 0 ? (fromH + s) : (fromH - s - 1);
-      const slopeDirZ = stepDir > 0 ? dirZ : -dirZ;
-      for (let x = Math.max(0, x0); x <= Math.min(W - 1, x1); x++) {
-        addPlannedRamp(x, z, 0, slopeDirZ, lowH);
-      }
-    }
-  }
-
-  function addWideXRamp(z0, z1, xLow, dirX, fromH, toH) {
-    const steps = Math.abs(toH - fromH);
-    const stepDir = toH > fromH ? 1 : -1;
-    for (let s = 0; s < steps; s++) {
-      const x = xLow + dirX * s;
-      const lowH = stepDir > 0 ? (fromH + s) : (fromH - s - 1);
-      const slopeDirX = stepDir > 0 ? dirX : -dirX;
-      for (let z = Math.max(0, z0); z <= Math.min(D - 1, z1); z++) {
-        addPlannedRamp(x, z, slopeDirX, 0, lowH);
-      }
-    }
-  }
-
-  return { slopes, rampKeys, setFloorRect, setOctaRoom, addWideZRamp, addWideXRamp };
+  return slopes;
 }

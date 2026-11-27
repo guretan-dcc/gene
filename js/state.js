@@ -1,11 +1,13 @@
-// --- アプリケーション状態 ---
 export const state = {
-  preset: 'hyper_corridor',
   chamberShape: 'octagonal', // 'octagonal' | 'rectangular'
   tier: 'gold',
-  symmetry: '2way',
-  gridWidth: 13,
-  gridDepth: 29,
+  roomLayers: 5,        // 部屋の段数（入口・ボス部屋を含む）
+  branchCount: 2,       // 左右に分岐する段の数
+  roomSize: 11,         // 部屋の一辺(マス)
+  corridorLength: 5,    // 部屋間の通路の長さ(マス)
+  heightVariation: true,
+  gridWidth: 0,         // 生成時に決まる
+  gridDepth: 0,         // 生成時に決まる
   cellSize: 2.0,
   seed: 2048,
   magmaDepth: 14,       // マグマ面までの垂直距離(m)
@@ -17,26 +19,26 @@ export const state = {
   outerWallEnabled: true,
   outerWallHeight: 12,
   previewCutFrontWall: true,
-  showArenaDecor: true,
-  autoSlopes: true,
+  showDoors: true,
   autoTraps: false,
   jumpPadCount: 6,
   sawCount: 4,
   floorTrapCount: 8,
   conveyorCount: 6,
-  enemyCount: 8,
-  safeRadius: 5,
+  enemiesPerRoom: 4,
   pedestalHeight: 1.0,
   clickMode: 'enemy', // 'enemy' | 'trap'
   animateTraps: true,
   noCarveMerge: true, // 柱や高台の下の床・壁をくり抜かずに貫通マージしてポリゴン削減
   wireframe: false,
-  showGridOverlay: true
+  showGridOverlay: false
 };
 
 // 生成データ（generateArena() が書き換える）
 export const arena = {
   grid: [],       // grid[z][x] のセル
+  rooms: [],      // { id, layer, lane, type, x0, x1, z0, z1, height }
+  doors: [],      // { id, from, to, x, z, width, height }
   slopes: [],     // { x, z, dirX, dirZ, lowH, highH }
   sawTracks: []   // 往復回転ノコギリの軌道
 };

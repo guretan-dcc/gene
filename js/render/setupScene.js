@@ -1,6 +1,6 @@
 import { view } from './context.js';
 
-const GROUP_NAMES = ['terrain', 'outerWall', 'pedestal', 'slope', 'magma', 'trap', 'marker', 'decor', 'gridOverlay'];
+const GROUP_NAMES = ['terrain', 'outerWall', 'pedestal', 'slope', 'magma', 'trap', 'marker', 'door', 'gridOverlay'];
 
 export function setupScene(viewport) {
   view.scene = new THREE.Scene();

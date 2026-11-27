@@ -13,13 +13,13 @@ export const VOX = {
 
 // Clone Drone 公式7ティア準拠カラーテーマ
 export const TIER_THEMES = {
-  bronze:   { label: 'Bronze',   neon: 0xd97706, floor0: 0x363332, floor1: 0x4c4542, floor2: 0x625751, floor3: 0x786a62, pillar1: 0x6b5c52, pillar2: 0x857163, under: 0x1c1918, rim: 0x1a1716 },
-  silver:   { label: 'Silver',   neon: 0x94a3b8, floor0: 0x334155, floor1: 0x475569, floor2: 0x5c6e85, floor3: 0x7286a0, pillar1: 0x64748b, pillar2: 0x8295ae, under: 0x192231, rim: 0x161f2e },
-  gold:     { label: 'Gold',     neon: 0xfacc15, floor0: 0x2f3545, floor1: 0x434b61, floor2: 0x58617a, floor3: 0x6e7894, pillar1: 0x696452, pillar2: 0x8a815e, under: 0x181c28, rim: 0x151924 },
-  diamond:  { label: 'Diamond',  neon: 0x38bdf8, floor0: 0x263547, floor1: 0x364d66, floor2: 0x476585, floor3: 0x597ea3, pillar1: 0x527494, pillar2: 0x6b95ba, under: 0x121c27, rim: 0x101924 },
-  titanium: { label: 'Titanium', neon: 0xc084fc, floor0: 0x2c293d, floor1: 0x403b59, floor2: 0x544e73, floor3: 0x6a628f, pillar1: 0x685f8a, pillar2: 0x8378ab, under: 0x161422, rim: 0x13111f },
-  uranium:  { label: 'Uranium',  neon: 0x4ade80, floor0: 0x22332c, floor1: 0x314a40, floor2: 0x406154, floor3: 0x507868, pillar1: 0x4a705d, pillar2: 0x608f78, under: 0x101a16, rim: 0x0e1714 },
-  insanium: { label: 'Insanium', neon: 0xf43f5e, floor0: 0x2d1f26, floor1: 0x452d38, floor2: 0x5d3c4b, floor3: 0x754b5e, pillar1: 0x703b4a, pillar2: 0x914b5e, under: 0x170e13, rim: 0x140b10 }
+  bronze:   { label: 'Bronze',   floor0: 0x363332, floor1: 0x4c4542, floor2: 0x625751, floor3: 0x786a62, pillar1: 0x6b5c52, pillar2: 0x857163, under: 0x1c1918, rim: 0x1a1716 },
+  silver:   { label: 'Silver',   floor0: 0x334155, floor1: 0x475569, floor2: 0x5c6e85, floor3: 0x7286a0, pillar1: 0x64748b, pillar2: 0x8295ae, under: 0x192231, rim: 0x161f2e },
+  gold:     { label: 'Gold',     floor0: 0x2f3545, floor1: 0x434b61, floor2: 0x58617a, floor3: 0x6e7894, pillar1: 0x696452, pillar2: 0x8a815e, under: 0x181c28, rim: 0x151924 },
+  diamond:  { label: 'Diamond',  floor0: 0x263547, floor1: 0x364d66, floor2: 0x476585, floor3: 0x597ea3, pillar1: 0x527494, pillar2: 0x6b95ba, under: 0x121c27, rim: 0x101924 },
+  titanium: { label: 'Titanium', floor0: 0x2c293d, floor1: 0x403b59, floor2: 0x544e73, floor3: 0x6a628f, pillar1: 0x685f8a, pillar2: 0x8378ab, under: 0x161422, rim: 0x13111f },
+  uranium:  { label: 'Uranium',  floor0: 0x22332c, floor1: 0x314a40, floor2: 0x406154, floor3: 0x507868, pillar1: 0x4a705d, pillar2: 0x608f78, under: 0x101a16, rim: 0x0e1714 },
+  insanium: { label: 'Insanium', floor0: 0x2d1f26, floor1: 0x452d38, floor2: 0x5d3c4b, floor3: 0x754b5e, pillar1: 0x703b4a, pillar2: 0x914b5e, under: 0x170e13, rim: 0x140b10 }
 };
 
 export const PALETTE = {

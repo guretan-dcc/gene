@@ -3,22 +3,21 @@ import { state } from '../state.js';
 import { generateArena } from '../generation/generateArena.js';
 import { rebuildScene } from '../render/rebuildScene.js';
 
-// 変更時にアリーナを再生成する項目
+// 変更時にステージを再生成する項目
 const REGENERATE_INPUTS = [
-  'preset', 'symmetry', 'gridWidth', 'gridDepth', 'cellSize', 'seed',
+  'roomLayers', 'branchCount', 'roomSize', 'corridorLength', 'cellSize', 'seed',
   'coverBlockSize', 'coverDensity', 'wallHeight',
-  'jumpPadCount', 'sawCount', 'floorTrapCount', 'conveyorCount',
-  'enemyCount', 'safeRadius'
+  'jumpPadCount', 'sawCount', 'floorTrapCount', 'conveyorCount', 'enemiesPerRoom'
 ];
 // 見た目の再構築だけで反映できる項目
 const REBUILD_INPUTS = [
   'chamberShape', 'tier', 'magmaDepth', 'chasmGap', 'magmaMargin', 'outerWallHeight', 'pedestalHeight'
 ];
-const REGENERATE_CHECKBOXES = ['autoSlopes', 'autoTraps'];
-const REBUILD_CHECKBOXES = ['outerWallEnabled', 'previewCutFrontWall', 'showArenaDecor', 'showGridOverlay'];
+const REGENERATE_CHECKBOXES = ['heightVariation', 'autoTraps'];
+const REBUILD_CHECKBOXES = ['outerWallEnabled', 'previewCutFrontWall', 'showDoors', 'showGridOverlay'];
 
 // 文字列のまま state に入れる項目（それ以外は数値化）
-const STRING_KEYS = new Set(['preset', 'chamberShape', 'tier', 'symmetry']);
+const STRING_KEYS = new Set(['chamberShape', 'tier']);
 
 function apply(regenerate) {
   if (regenerate) generateArena();

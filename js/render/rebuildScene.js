@@ -4,7 +4,7 @@ import { addStaticMeshes } from './staticMeshes.js';
 import { addSpawnMarkers } from './markers.js';
 import { addTraps } from './traps.js';
 import { addSawTracks } from './saws.js';
-import { addArenaDecor } from './decor.js';
+import { addDoors } from './doors.js';
 import { addGridOverlay } from './gridOverlay.js';
 import { updateStats } from '../ui/stats.js';
 import { syncFrontWallUI, syncVREyeUI } from '../ui/sync.js';
@@ -32,7 +32,7 @@ export function rebuildScene() {
   const spawnCounts = addSpawnMarkers();
   const trapCounts = addTraps();
   addSawTracks();
-  addArenaDecor();
+  addDoors();
   addGridOverlay();
 
   updateStats(meshInfo, spawnCounts, trapCounts);
