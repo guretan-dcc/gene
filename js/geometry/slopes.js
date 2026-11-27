@@ -7,7 +7,8 @@ import { MeshBuilder } from './MeshBuilder.js';
 const SLAB_THICKNESS = 0.45;
 const STEP_COUNT = 5;
 
-export function buildSlopeGeometry(chunkId) {
+// forCollision: true なら階段を段にせず坂にする
+export function buildSlopeGeometry(chunkId, forCollision = false) {
   const { S, halfW, halfD } = getGridMetrics();
   const layerH = getLayerHeight();
   const mesh = new MeshBuilder();
@@ -77,7 +78,7 @@ export function buildSlopeGeometry(chunkId) {
       bA = [x0, yL, z1]; bB = [x0, yL, z0];
     }
 
-    if (sl.stairs) addSteps(mesh, [lA, lB, hA, hB], yH, col);
+    if (sl.stairs && !forCollision) addSteps(mesh, [lA, lB, hA, hB], yH, col);
     else if (sl.thin) addSlab(mesh, [lA, lB, hA, hB], col, new THREE.Color(style.trim));
     else addWedge(mesh, [lA, lB, hA, hB, bA, bB], col);
   }

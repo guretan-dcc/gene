@@ -9,6 +9,7 @@ import { camCtrl } from '../camera/cameraState.js';
 import { resetCameraOverview, setCameraPlayerView, setCameraVREyeView } from '../camera/views.js';
 import { exportPLY } from '../export/ply.js';
 import { exportJSON } from '../export/json.js';
+import { exportUnityPackage } from '../export/unity.js';
 import { showToast } from './toast.js';
 import { bindSettings } from './settings.js';
 import { bindSizePresets } from './sizePresets.js';
@@ -62,6 +63,7 @@ export function bindUI() {
     showToast('敵スポーン位置を再抽選しました');
   });
 
+  onClick('btnExportUnity', exportUnityPackage);
   onClick('btnExportPLY', exportPLY);
   onClick('btnExportJSON', exportJSON);
 

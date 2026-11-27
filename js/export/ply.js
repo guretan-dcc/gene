@@ -1,33 +1,10 @@
 // PLY書き出し（区画ごとに分割したZIP、または1ファイル）
 import { arena } from '../state.js';
-import { buildTerrainGeometry } from '../geometry/terrain.js';
-import { buildWallGeometry } from '../geometry/walls.js';
-import { buildPedestalGeometry } from '../geometry/pedestals.js';
-import { buildSlopeGeometry } from '../geometry/slopes.js';
-import { buildDecorGeometry } from '../geometry/decor.js';
-import { buildMagmaGeometry } from '../geometry/magma.js';
+import { isChecked, collectChunkGeometries, collectMagma } from './chunkGeometry.js';
 import { showToast } from '../ui/toast.js';
 import { downloadFile } from './download.js';
 import { getExportFilename, getChunkMeshName } from './filename.js';
 import { createZip } from './zip.js';
-
-function isChecked(id) {
-  return document.getElementById(id).checked;
-}
-
-// 1区画分のジオメトリ（座標はステージ全体の座標系のまま）
-function collectChunkGeometries(chunkId) {
-  const geos = [buildTerrainGeometry(chunkId).geometry, buildWallGeometry(chunkId)];
-  if (isChecked('includePedestalsInPLY')) geos.push(buildPedestalGeometry(chunkId));
-  if (isChecked('includeSlopesInPLY')) geos.push(buildSlopeGeometry(chunkId));
-  const decor = buildDecorGeometry(chunkId);
-  geos.push(decor.solid, decor.glow);
-  return geos;
-}
-
-function collectMagma() {
-  return isChecked('includeMagmaInPLY') ? [buildMagmaGeometry()] : [];
-}
 
 function exportSplit() {
   const files = arena.chunks.map(chunk => ({

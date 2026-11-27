@@ -84,6 +84,13 @@
 
     <!-- Export Panel -->
     <div class="bg-slate-800/60 border border-slate-700/70 rounded-xl p-3 flex flex-col gap-2">
+      <div class="flex items-center gap-2 text-xs">
+        <label for="stageName" class="text-slate-300 shrink-0">ステージ名</label>
+        <input type="text" id="stageName" value="ArenaStage" class="flex-1 min-w-0 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-100 text-xs" />
+      </div>
+      <button id="btnExportUnity" class="py-2 px-3 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow transition">
+        Unity書き出し（.unitypackage）
+      </button>
       <div class="grid grid-cols-2 gap-2">
         <button id="btnExportPLY" class="py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow transition">
           PLY書き出し
@@ -95,22 +102,22 @@
       <div class="flex flex-col gap-1.5 pt-1">
         <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
           <input type="checkbox" id="splitPLY" checked class="rounded border-slate-600 bg-slate-900" />
-          <span>部屋・通路ごとに分割して書き出す（ZIP）</span>
+          <span>PLYを部屋・通路ごとに分割する（ZIP）</span>
         </label>
         <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-          <input type="checkbox" id="includePedestalsInPLY" checked class="rounded border-slate-600 bg-slate-900" />
-          <span>敵台座・自機パッドをPLYに含める</span>
+          <input type="checkbox" id="includePedestals" checked class="rounded border-slate-600 bg-slate-900" />
+          <span>敵台座・自機パッドを含める</span>
         </label>
         <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-          <input type="checkbox" id="includeSlopesInPLY" checked class="rounded border-slate-600 bg-slate-900" />
+          <input type="checkbox" id="includeSlopes" checked class="rounded border-slate-600 bg-slate-900" />
           <span>通路スロープ（4ポリゴン/基）を含める</span>
         </label>
         <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-          <input type="checkbox" id="includeMagmaInPLY" checked class="rounded border-slate-600 bg-slate-900" />
+          <input type="checkbox" id="includeMagma" checked class="rounded border-slate-600 bg-slate-900" />
           <span>広大マグマ底面（2ポリゴン）を含める</span>
         </label>
         <p class="text-[10px] text-emerald-300/90 leading-snug pt-0.5">
-          ※動的ギミック（扉・ノコギリ・ジャンプパッド・炎・スパイク・コンベア）はJSONに座標・軌道出力。PLYは壁＋静的地形のみを出力します。
+          ※動的ギミック（扉・ノコギリ・ジャンプパッド・炎・スパイク・コンベア）はJSONに座標・軌道出力。unitypackageとPLYは壁＋静的地形のみを出力します。
         </p>
       </div>
     </div>

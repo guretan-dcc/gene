@@ -29,7 +29,19 @@ VS Code の Live Server や GitHub Pages でも動きます。Three.js r128 と 
 | `js/render/` | Three.js のシーン構築とアニメーション |
 | `js/camera/` / `js/input/` | 視点・操作・クリック編集 |
 | `js/ui/` | サイドバー・統計・通知 |
-| `js/export/` | PLY / JSON 書き出し |
+| `js/export/` | unitypackage / PLY / JSON 書き出し |
+
+## Unityへの書き出し
+
+「Unity書き出し」で `<ステージ名>.unitypackage` を出力し、Unityの Assets > Import Package > Custom Package で取り込みます。地形ジェネレーター(gene)と同じ構成です。
+
+- `Assets/MyAssets/GameObjects/Stages/<ステージ名>/` に Prefab と、メッシュごとの `.asset` が入ります。
+- マテリアルはプロジェクトの共有マテリアル `LowPolyVertexColor.mat` を GUID で参照します（パッケージには含みません）。溶岩も同じマテリアルです。
+- Prefab の子は部屋・通路ごとのオブジェクトです。`MeshRenderer` を切り替えると、当たり判定を残したまま非表示にできます。
+- `MeshCollider` には判定専用のメッシュ（床・壁・遮蔽物・坂・台座）を使います。装飾と浅い溶岩面は含まず、階段は坂になります。
+- 同じステージ名で出し直して取り込むと、シーン内の参照を保ったまま中身が更新されます。
+- 座標は数値をそのまま書き出すため、配置JSONと一致します（Unityでは見た目がプレビューと左右反転します）。
+- 扉は含みません。
 
 ## ステージ構造
 
