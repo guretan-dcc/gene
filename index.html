@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>縦長ローポリ・ボクセルアリーナ ジェネレーター</title>
+  <!-- Tailwind CSS & Inter Font -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- Three.js r128 (グローバル THREE として読み込む) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <link href="css/style.css" rel="stylesheet" />
+</head>
+<body class="h-screen w-screen flex flex-col lg:flex-row select-none bg-[#0b0f19] text-slate-200">
+
+  <!-- 3D Viewport Container -->
+  <main id="viewport" class="relative flex-1 min-h-[50vh] lg:min-h-0 h-full overflow-hidden bg-[#0a0d14]">
+    <!-- Top-Left HUD Overlay -->
+    <div class="absolute top-3 left-3 z-10 pointer-events-none flex flex-col gap-2 max-w-[92%] sm:max-w-md">
+      <div class="bg-slate-900/85 backdrop-blur-md border border-slate-700/80 rounded-xl px-3.5 py-2.5 shadow-xl text-xs leading-relaxed">
+        <div class="font-semibold text-sky-400 mb-1 flex flex-wrap items-center gap-1.5">
+          <span>操作ガイド</span>
+          <span class="text-[10px] font-normal px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Greedy Meshing 最適化済</span>
+          <span id="frontCutBadge" class="text-[10px] font-normal px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">手前壁プレビュー下げ中</span>
+          <span id="vrEyeBadge" style="display:none;" class="text-[10px] font-normal px-1.5 py-0.5 rounded bg-fuchsia-500/25 text-fuchsia-200 border border-fuchsia-400/50">VR目線 1.6m（ドラッグ:見回す / WASD・ホイール:歩行）</span>
+        </div>
+        <div class="text-slate-300">左ドラッグ: 回転 ／ 右ドラッグ(Shift+左): 平行移動 ／ ホイール: ズーム</div>
+        <div class="text-slate-200 mt-0.5">
+          <strong class="text-white">床・台座をクリック</strong>: <span id="clickModeDesc">敵スポーン切替（なし → 近接 → 遠距離）</span>
+        </div>
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 pt-1.5 border-t border-slate-700/70 text-[11px]">
+          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-sky-400 inline-block"></span>自機</span>
+          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-red-500 inline-block"></span>近接</span>
+          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span>遠距離</span>
+          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-cyan-400 inline-block"></span>ジャンプ</span>
+          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-rose-400 inline-block"></span>ノコギリ/炎</span>
+          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-400 inline-block"></span>コンベア</span>
+        </div>
+      </div>
+
+      <!-- Polygon Reduction Badge -->
+      <div class="bg-slate-900/85 backdrop-blur-md border border-emerald-500/40 rounded-xl px-3.5 py-2 shadow-lg text-xs inline-flex items-center gap-2.5 w-fit">
+        <span class="text-emerald-400 font-bold">POLY</span>
+        <span id="polySummary" class="text-slate-200 font-mono">計算中...</span>
+      </div>
+    </div>
+
+    <!-- Bottom-Left Quick View Controls -->
+    <div class="absolute bottom-3 left-3 z-10 flex flex-wrap gap-2">
+      <button id="btnClickMode" class="px-3 py-2 rounded-lg text-xs font-semibold bg-slate-900/85 hover:bg-slate-800 text-amber-300 border border-amber-500/50 shadow-lg backdrop-blur transition">
+        クリック編集: 敵スポーン
+      </button>
+      <button id="btnResetCamera" class="px-3 py-2 rounded-lg text-xs font-semibold bg-slate-900/85 hover:bg-slate-800 text-slate-200 border border-slate-700 shadow-lg backdrop-blur transition">
+        全体視点リセット
+      </button>
+      <button id="btnPlayerCamera" class="px-3 py-2 rounded-lg text-xs font-semibold bg-slate-900/85 hover:bg-slate-800 text-sky-200 border border-slate-700 shadow-lg backdrop-blur transition">
+        自機後方視点
+      </button>
+      <button id="btnVREyeCamera" class="px-3 py-2 rounded-lg text-xs font-semibold bg-slate-900/85 hover:bg-fuchsia-950/80 text-fuchsia-300 border border-fuchsia-500/50 shadow-lg backdrop-blur transition">
+        VR目線 (1.6m): OFF
+      </button>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-slate-800 border border-sky-500/50 text-sky-100 text-xs font-medium shadow-2xl opacity-0 pointer-events-none transition-opacity duration-300">
+    </div>
+  </main>
+
+  <!-- Sidebar Controls -->
+  <aside class="w-full lg:w-[360px] h-[50vh] lg:h-full bg-slate-900 border-t lg:border-t-0 lg:border-l border-slate-800 p-4 overflow-y-auto flex flex-col gap-3.5 shrink-0">
+    <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+      <h1 class="text-sm font-bold text-white tracking-wide">縦長ボクセルアリーナ生成</h1>
+      <span class="text-[11px] px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30 font-medium">Ultra Long / Low-Poly</span>
+    </div>
+
+    <!-- Primary Action Buttons -->
+    <div class="grid grid-cols-2 gap-2">
+      <button id="btnGenerate" class="py-2 px-3 rounded-lg bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white text-xs font-semibold shadow transition">
+        再生成
+      </button>
+      <button id="btnRandomSeed" class="py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 text-xs font-semibold transition">
+        ランダムシード
+      </button>
+    </div>
+
+    <!-- Export Panel -->
+    <div class="bg-slate-800/60 border border-slate-700/70 rounded-xl p-3 flex flex-col gap-2">
+      <div class="grid grid-cols-2 gap-2">
+        <button id="btnExportPLY" class="py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow transition">
+          PLY書き出し
+        </button>
+        <button id="btnExportJSON" class="py-2 px-3 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold shadow transition">
+          配置JSON書き出し
+        </button>
+      </div>
+      <div class="flex flex-col gap-1.5 pt-1">
+        <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+          <input type="checkbox" id="includePedestalsInPLY" checked class="rounded border-slate-600 bg-slate-900" />
+          <span>敵台座・自機パッドをPLYに含める</span>
+        </label>
+        <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+          <input type="checkbox" id="includeSlopesInPLY" checked class="rounded border-slate-600 bg-slate-900" />
+          <span>高台スロープ（4ポリゴン/基）を含める</span>
+        </label>
+        <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+          <input type="checkbox" id="includeMagmaInPLY" checked class="rounded border-slate-600 bg-slate-900" />
+          <span>広大マグマ底面（2ポリゴン）を含める</span>
+        </label>
+        <p class="text-[10px] text-emerald-300/90 leading-snug pt-0.5">
+          ※動的ギミック（ノコギリ・ジャンプパッド・炎・スパイク・コンベア）はJSONに座標・軌道出力。PLYは全周高い壁＋静的地形のみを軽量出力します。
+        </p>
+      </div>
+    </div>
+
+    <!-- Section 1: Arena Size & Long Aspect Presets -->
+    <section class="bg-slate-800/50 border border-slate-700/60 rounded-xl p-3 flex flex-col gap-2.5">
+      <div class="text-xs font-bold text-sky-400">1. アリーナ形状・スケール設定</div>
+
+      <!-- VR Hyperdome Recommended Scale Presets -->
+      <div class="flex flex-col gap-1.5">
+        <span class="text-[11px] text-fuchsia-300 font-semibold">VR Hyperdome適正スケール（通路＋立体部屋）</span>
+        <div class="grid grid-cols-2 gap-1.5">
+          <button data-size="13,29,2" data-vr-preset="5,8,14,5,12" class="quick-size-btn py-1.5 px-2 rounded-lg bg-fuchsia-950/60 hover:bg-fuchsia-900/70 border border-fuchsia-500/50 text-[11px] text-fuchsia-200 font-semibold transition">
+            VR立体回廊 (13×29・2m)
+          </button>
+          <button data-size="15,45,2" data-vr-preset="6,12,16,6,14" class="quick-size-btn py-1.5 px-2 rounded-lg bg-fuchsia-950/50 hover:bg-fuchsia-900/70 border border-fuchsia-400/40 text-[11px] text-fuchsia-200 font-semibold transition">
+            VRロング連戦 (15×45・2m)
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Aspect Ratio / Scale Presets -->
+      <div class="flex flex-col gap-1.5">
+        <span class="text-[11px] text-slate-400">コンパクト〜超巨大クイックサイズ</span>
+        <div class="grid grid-cols-2 gap-1.5">
+          <button data-size="11,21,2" data-vr-preset="4,6,12,4,10" class="quick-size-btn py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-200 font-medium transition">
+            VRコンパクト (11×21)
+          </button>
+          <button data-size="17,57,2.5" data-vr-preset="8,16,18,6,16" class="quick-size-btn py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-700 border border-sky-500/40 text-[11px] text-sky-300 font-medium transition">
+            大型立体回廊 (17×57)
+          </button>
+          <button data-size="15,75,3" data-vr-preset="10,22,22,7,18" class="quick-size-btn py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-700 border border-amber-500/40 text-[11px] text-amber-300 font-medium transition">
+            超縦長ブリッジ (15×75)
+          </button>
+          <button data-size="23,65,3.5" data-vr-preset="10,24,26,8,20" class="quick-size-btn py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-700 border border-emerald-500/40 text-[11px] text-emerald-300 font-medium transition">
+            超巨大アリーナ (23×65)
+          </button>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between gap-2 text-xs pt-1">
+        <label for="preset" class="text-slate-300">地形タイプ</label>
+        <select id="preset" class="w-44 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-100 text-xs">
+          <option value="hyper_corridor" selected>1. 立体回廊・多段テラス型</option>
+          <option value="stepped_canyon">2. 渓谷スロープ・大高低差型</option>
+          <option value="sky_walkways">3. 浮遊通路・分岐ブリッジ型</option>
+          <option value="octa_dome">4. 八角Hyperdome＋進入橋</option>
+          <option value="twin_bridges">5. 双子橋・高台溶岩島型</option>
+          <option value="gauntlet">6. 連続ウェーブ多部屋回廊</option>
+        </select>
+      </div>
+
+      <div class="flex items-center justify-between gap-2 text-xs">
+        <label for="chamberShape" class="text-slate-300">外周ホール形状</label>
+        <select id="chamberShape" class="w-44 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-100 text-xs">
+          <option value="octagonal" selected>八角ドーム（Hyperdome風）</option>
+          <option value="rectangular">巨大長方形チャンバー</option>
+        </select>
+      </div>
+
+      <div class="flex items-center justify-between gap-2 text-xs">
+        <label for="tier" class="text-slate-300">アリーナTier演出</label>
+        <select id="tier" class="w-44 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-100 text-xs">
+          <option value="bronze">Bronze（銅・入門）</option>
+          <option value="silver">Silver（銀・標準）</option>
+          <option value="gold" selected>Gold（金・人気帯）</option>
+          <option value="diamond">Diamond（水色・高難度）</option>
+          <option value="titanium">Titanium（白銀紫・激戦）</option>
+          <option value="uranium">Uranium（蛍光緑・極限）</option>
+          <option value="insanium">Insanium（真紅・狂気）</option>
+        </select>
+      </div>
+
+      <div class="flex items-center justify-between gap-2 text-xs">
+        <label for="symmetry" class="text-slate-300">対称モード</label>
+        <select id="symmetry" class="w-44 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-100 text-xs">
+          <option value="2way" selected>左右対称（縦長推奨）</option>
+          <option value="none">非対称（うねり通路向け）</option>
+        </select>
+      </div>
+
+      <div class="flex items-center gap-2 text-xs">
+        <label for="gridWidth" class="text-slate-300 w-24 shrink-0">横幅 (Xマス)</label>
+        <input type="range" id="gridWidth" min="9" max="35" step="2" value="13" class="flex-1" />
+        <span id="gridWidthVal" class="w-9 text-right font-mono text-slate-300">13</span>
+      </div>
+
+      <div class="flex items-center gap-2 text-xs">
+        <label for="gridDepth" class="text-slate-300 w-24 shrink-0">奥行き (Zマス)</label>
+        <input type="range" id="gridDepth" min="15" max="105" step="2" value="29" class="flex-1" />
+        <span id="gridDepthVal" class="w-9 text-right font-mono text-slate-300">29</span>
+      </div>
+
+      <div class="flex items-center gap-2 text-xs">
+        <label for="cellSize" class="text-slate-300 w-24 shrink-0">1マス幅 (m)</label>
+        <input type="range" id="cellSize" min="1.5" max="6" step="0.5" value="2" class="flex-1" />
+        <span id="cellSizeVal" class="w-9 text-right font-mono text-slate-300">2</span>
+      </div>
+
+      <div class="flex items-center justify-between gap-2 text-xs">
+        <label for="seed" class="text-slate-300">シード値</label>
+        <input type="number" id="seed" value="2048" class="w-28 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-slate-100 font-mono text-xs" />
+      </div>
+    </section>
+
+    <!-- Section 2: Cover & Wide Magma Settings -->
+    <section class="bg-slate-800/50 border border-slate-700/60 rounded-xl p-3 flex flex-col gap-2.5">
+      <div class="text-xs font-bold text-sky-400">2. 高低差・深いマグマ谷・壁設定</div>
+
+      <div class="flex items-center gap-2 text-xs">
+        <label for="magmaDepth" class="text-amber-300 w-24 shrink-0 font-medium">マグマ深さ(m)</label>
+        <input type="range" id="magmaDepth" min="4" max="40" step="2" value="14" class="flex-1" />
+        <span id="magmaDepthVal" class="w-9 text-right font-mono text-amber-300">14</span>
+      </div>
+
+      <div class="flex items-center gap-2 text-xs">
+        <label for="chasmGap" class="text-slate-300 w-24 shrink-0">外周谷の幅(ﾏｽ)</label>
+        <input type="range" id="chasmGap" min="0" max="12" step="1" value="5" class="flex-1" />
+        <span id="chasmGapVal" class="w-9 text-right font-mono text-slate-300">5</span>
+      </div>
+
+      <div class="flex items-center justify-between gap-2 text-xs">
+        <label for="coverBlockSize" class="text-slate-300">遮蔽物Cubeサイズ</label>
+        <select id="coverBlockSize" class="w-44 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-100 text-xs">
+          <option value="2" selected>大型Cube (2×2・超ローポリ)</option>
+          <option value="1">標準Cube (1×1)</option>
+        </select>
+      </div>
+
+      <div class="flex items-center gap-2 text-xs">
+        <label for="coverDensity" class="text-slate-300 w-24 shrink-0">遮蔽物密度</label>
+        <input type="range" id="coverDensity" min="0" max="0.34" step="0.02" value="0.10" class="flex-1" />
+        <span id="coverDensityVal" class="w-9 text-right font-mono text-slate-300">0.10</span>
+      </div>
+
+      <div class="flex items-center gap-2 text-xs">
+        <label for="wallHeight" class="text-slate-300 w-24 shrink-0">遮蔽物最大高</label>
+        <input type="range" id="wallHeight" min="1" max="4" step="1" value="2" class="flex-1" />
+        <span id="wallHeightVal" class="w-9 text-right font-mono text-slate-300">2</span>
+      </div>
+
+      <div class="flex items-center gap-2 text-xs">
+        <label for="magmaMargin" class="text-slate-300 w-24 shrink-0">遠景マグマ幅(m)</label>
+        <input type="range" id="magmaMargin" min="30" max="240" step="15" value="90" class="flex-1" />
+        <span id="magmaMarginVal" class="w-9 text-right font-mono text-slate-300">90</span>
+      </div>
+
+      <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer pt-0.5">
+        <input type="checkbox" id="outerWallEnabled" checked class="rounded border-slate-600 bg-slate-900" />
+        <span>外周の巨大アリーナ壁を生成</span>
+      </label>
+
+      <div class="flex items-center gap-2 text-xs">
+        <label for="outerWallHeight" class="text-slate-300 w-24 shrink-0">巨大壁の高さ(層)</label>
+        <input type="range" id="outerWallHeight" min="4" max="30" step="1" value="12" class="flex-1" />
+        <span id="outerWallHeightVal" class="w-9 text-right font-mono text-slate-300">12</span>
+      </div>
+
+      <label class="flex items-center gap-2 text-xs text-sky-300 cursor-pointer">
+        <input type="checkbox" id="previewCutFrontWall" checked class="rounded border-slate-600 bg-slate-900" />
+        <span>プレビュー時は手前壁を下げて見やすくする</span>
+      </label>
+
+      <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+        <input type="checkbox" id="showArenaDecor" checked class="rounded border-slate-600 bg-slate-900" />
+        <span>壁ネオン帯＆実況ブース装飾を表示</span>
+      </label>
+
+      <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+        <input type="checkbox" id="showGridOverlay" checked class="rounded border-slate-600 bg-slate-900" />
+        <span>床ガイドグリッド＆10m射程線を表示</span>
+      </label>
+
+      <p class="text-[11px] text-slate-400 leading-snug">
+        ※細い支柱は使わず、各足場をマグマ底まで一体の巨大ソリッドCube（側面1枚板）として最小ポリゴンで生成します。
+      </p>
+    </section>
+
+    <!-- Section 3: Clone Drone Traps & Mobility Gimmicks -->
+    <section class="bg-slate-800/50 border border-cyan-500/30 rounded-xl p-3 flex flex-col gap-2.5">
+      <div class="text-xs font-bold text-cyan-400">3. Clone Drone ギミック＆トラップ</div>
+
+      <label class="flex items-center gap-2 text-xs text-slate-200 cursor-pointer">
+        <input type="checkbox" id="autoSlopes" checked class="rounded border-slate-600 bg-slate-900" />
+        <span>高台スロープを自動接続（徒歩昇降用）</span>
+      </label>
+
+      <label class="flex items-center gap-2 text-xs text-amber-300 cursor-pointer pt-0.5">
+        <input type="checkbox" id="autoTraps" class="rounded border-slate-600 bg-slate-900" />
+        <span>トラップを自動配置する（デフォルトOFF）</span>
+      </label>
+
+      <div id="trapAutoSettings" class="flex flex-col gap-2.5 opacity-45 transition-opacity">
+        <div class="flex items-center gap-2 text-xs">
+          <label for="jumpPadCount" class="text-slate-300 w-24 shrink-0">ジャンプパッド</label>
+          <input type="range" id="jumpPadCount" min="0" max="16" step="1" value="6" class="flex-1" />
+          <span id="jumpPadCountVal" class="w-9 text-right font-mono text-slate-300">6</span>
+        </div>
+
+        <div class="flex items-center gap-2 text-xs">
+          <label for="sawCount" class="text-slate-300 w-24 shrink-0">回転ノコギリ</label>
+          <input type="range" id="sawCount" min="0" max="10" step="1" value="4" class="flex-1" />
+          <span id="sawCountVal" class="w-9 text-right font-mono text-slate-300">4</span>
+        </div>
+
+        <div class="flex items-center gap-2 text-xs">
+          <label for="floorTrapCount" class="text-slate-300 w-24 shrink-0">炎・スパイク床</label>
+          <input type="range" id="floorTrapCount" min="0" max="20" step="1" value="8" class="flex-1" />
+          <span id="floorTrapCountVal" class="w-9 text-right font-mono text-slate-300">8</span>
+        </div>
+
+        <div class="flex items-center gap-2 text-xs">
+          <label for="conveyorCount" class="text-slate-300 w-24 shrink-0">ベルトコンベア</label>
+          <input type="range" id="conveyorCount" min="0" max="16" step="1" value="6" class="flex-1" />
+          <span id="conveyorCountVal" class="w-9 text-right font-mono text-slate-300">6</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: Enemy Spawns & Pedestals -->
+    <section class="bg-slate-800/50 border border-slate-700/60 rounded-xl p-3 flex flex-col gap-2.5">
+      <div class="text-xs font-bold text-sky-400">4. 敵スポーン・ウェーブ・台座設定</div>
+
+      <div class="flex items-center gap-2 text-xs">
+        <label for="enemyCount" class="text-slate-300 w-24 shrink-0">敵スポーン数</label>
+        <input type="range" id="enemyCount" min="2" max="48" step="1" value="8" class="flex-1" />
+        <span id="enemyCountVal" class="w-9 text-right font-mono text-slate-300">8</span>
+      </div>
+
+      <div class="flex items-center gap-2 text-xs">
+        <label for="safeRadius" class="text-slate-300 w-24 shrink-0">自機安全距離</label>
+        <input type="range" id="safeRadius" min="2" max="24" step="1" value="5" class="flex-1" />
+        <span id="safeRadiusVal" class="w-9 text-right font-mono text-slate-300">5</span>
+      </div>
+
+      <div class="flex items-center gap-2 text-xs">
+        <label for="pedestalHeight" class="text-slate-300 w-24 shrink-0">台座の高さ(m)</label>
+        <input type="range" id="pedestalHeight" min="0.4" max="3.0" step="0.2" value="1.0" class="flex-1" />
+        <span id="pedestalHeightVal" class="w-9 text-right font-mono text-slate-300">1.0</span>
+      </div>
+
+      <button id="btnRespawnEnemies" class="w-full py-1.5 px-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-100 text-xs font-semibold transition">
+        敵配置のみ再抽選
+      </button>
+    </section>
+
+    <!-- Section 5: Stats -->
+    <section class="bg-slate-800/40 border border-slate-700/50 rounded-xl p-3 flex flex-col gap-1.5">
+      <div class="text-xs font-bold text-sky-400">ステータス・ポリゴン統計</div>
+      <div id="stats" class="text-[11px] text-slate-300 font-mono leading-relaxed">生成待機中...</div>
+    </section>
+  </aside>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
