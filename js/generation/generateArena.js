@@ -4,6 +4,7 @@ import { createRng } from '../core/random.js';
 import { getPlayerCoord } from '../core/grid.js';
 import { createRoomGraph, getStageDimensions, CORRIDOR_HALF } from './roomGraph.js';
 import { createEmptyGrid, carveRoom, carveCorridor } from './carver.js';
+import { buildChunks } from './chunks.js';
 import { placeCoverBlocks } from './cover.js';
 import { assignEnemySpawns } from './enemies.js';
 import { assignTraps } from './traps.js';
@@ -32,6 +33,7 @@ export function generateArena() {
     height: rooms[link.to].height
   }));
 
+  buildChunks();
   placeCoverBlocks(rng);
   const start = getPlayerCoord();
   grid[start.z][start.x].spawn = 'player';

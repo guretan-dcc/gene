@@ -1,6 +1,7 @@
 // VR目線モードの歩行（WASD／矢印キー・ホイール）
 import { VR_EYE_HEIGHT, VR_WALK_SPEED } from '../config/constants.js';
-import { getGridMetrics } from '../core/grid.js';
+import { arena } from '../state.js';
+import { getGridMetrics, isInGrid, isWalkable } from '../core/grid.js';
 import { camCtrl } from './cameraState.js';
 import { getFloorHeightAtWorld } from './floorHeight.js';
 import { updateCameraPosition } from './views.js';
@@ -22,14 +23,24 @@ function isPressed(...codes) {
   return codes.some(code => keysPressed[code]);
 }
 
-// 水平移動してアリーナ内に収め、移動先の目線高さを返す
+function canStand(wx, wz) {
+  const { S, halfW, halfD } = getGridMetrics();
+  const x = Math.floor((wx + halfW) / S);
+  const z = Math.floor((wz + halfD) / S);
+  return isInGrid(x, z) && isWalkable(arena.grid[z][x]);
+}
+
+// 壁と遮蔽物を避けて水平移動し、移動先の目線高さを返す
 function moveHorizontally(dx, dz) {
-  const { halfW, halfD } = getGridMetrics();
-  const limitX = halfW - 0.5;
-  const limitZ = halfD - 0.5;
-  camCtrl.vrPos.x = Math.max(-limitX, Math.min(limitX, camCtrl.vrPos.x + dx));
-  camCtrl.vrPos.z = Math.max(-limitZ, Math.min(limitZ, camCtrl.vrPos.z + dz));
-  return getFloorHeightAtWorld(camCtrl.vrPos.x, camCtrl.vrPos.z) + VR_EYE_HEIGHT;
+  const { S } = getGridMetrics();
+  // すり抜けないよう半マス以下に刻み、軸ごとに判定して壁沿いに滑らせる
+  const steps = Math.max(1, Math.ceil(Math.hypot(dx, dz) / (S * 0.5)));
+  const pos = camCtrl.vrPos;
+  for (let i = 0; i < steps; i++) {
+    if (canStand(pos.x + dx / steps, pos.z)) pos.x += dx / steps;
+    if (canStand(pos.x, pos.z + dz / steps)) pos.z += dz / steps;
+  }
+  return getFloorHeightAtWorld(pos.x, pos.z) + VR_EYE_HEIGHT;
 }
 
 // ホイール1ノッチ分の前後移動（高さは即時反映）

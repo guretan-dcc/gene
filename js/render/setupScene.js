@@ -1,7 +1,5 @@
 import { view } from './context.js';
 
-const GROUP_NAMES = ['terrain', 'outerWall', 'pedestal', 'slope', 'magma', 'trap', 'marker', 'door', 'gridOverlay'];
-
 export function setupScene(viewport) {
   view.scene = new THREE.Scene();
   view.scene.background = new THREE.Color(0x0a0d14);
@@ -21,10 +19,9 @@ export function setupScene(viewport) {
   dir2.position.set(-90, 70, -110);
   view.scene.add(dir2);
 
-  for (const name of GROUP_NAMES) {
-    view.groups[name] = new THREE.Group();
-    view.scene.add(view.groups[name]);
-  }
+  view.stage = new THREE.Group();
+  view.gridOverlay = new THREE.Group();
+  view.scene.add(view.stage, view.gridOverlay);
 
   window.addEventListener('resize', () => {
     const w = viewport.clientWidth;

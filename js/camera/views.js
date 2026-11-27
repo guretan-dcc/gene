@@ -47,7 +47,7 @@ export function exitVREyeMode() {
 
 export function resetCameraOverview() {
   exitVREyeMode();
-  const maxSpan = (Math.max(state.gridWidth, state.gridDepth) + state.chasmGap * 1.4) * state.cellSize;
+  const maxSpan = Math.max(state.gridWidth, state.gridDepth) * state.cellSize;
   camCtrl.target.set(0, -state.magmaDepth * 0.15, 0);
   camCtrl.theta = 0.46;
   camCtrl.phi = 0.94;

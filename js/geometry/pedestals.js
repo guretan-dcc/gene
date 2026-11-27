@@ -4,7 +4,7 @@ import { PALETTE } from '../config/constants.js';
 import { getLayerHeight, getPlayerPadHeight, getGridMetrics, cellCenterX, cellCenterZ } from '../core/grid.js';
 import { MeshBuilder } from './MeshBuilder.js';
 
-export function buildPedestalGeometry() {
+export function buildPedestalGeometry(chunkId) {
   const { W, D, S } = getGridMetrics();
   const layerH = getLayerHeight();
   const pedH = state.pedestalHeight;
@@ -24,7 +24,7 @@ export function buildPedestalGeometry() {
   for (let z = 0; z < D; z++) {
     for (let x = 0; x < W; x++) {
       const cell = arena.grid[z][x];
-      if (cell.type === 'pit' || cell.spawn === 'none') continue;
+      if (cell.chunkId !== chunkId || cell.spawn === 'none') continue;
 
       const wx = cellCenterX(x);
       const wz = cellCenterZ(z);

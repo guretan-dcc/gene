@@ -5,26 +5,26 @@ import { getVoxelColor } from '../config/theme.js';
 import { getLayerHeight, getGridMetrics, isInGrid } from '../core/grid.js';
 import { MeshBuilder } from './MeshBuilder.js';
 
-export function buildTerrainGeometry() {
+export function buildTerrainGeometry(chunkId) {
   const mesh = new MeshBuilder();
-  addFloorTops(mesh);
-  addPlatformSides(mesh);
-  addCoverBlocks(mesh);
+  addFloorTops(mesh, chunkId);
+  addPlatformSides(mesh, chunkId);
+  addCoverBlocks(mesh, chunkId);
 
   return {
     geometry: mesh.build(),
-    naiveTriangles: countNaiveVoxels() * 12,
+    naiveTriangles: countNaiveVoxels(chunkId) * 12,
     optimizedTriangles: mesh.indices.length / 3
   };
 }
 
 // ナイーブ実装時（1ボクセル=12三角形）の比較用カウント
-function countNaiveVoxels() {
+function countNaiveVoxels(chunkId) {
   const baseDepthLayers = Math.max(1, Math.ceil(state.magmaDepth / getLayerHeight()));
   let count = 0;
   for (const row of arena.grid) {
     for (const c of row) {
-      if (c.type === 'pit') continue;
+      if (c.chunkId !== chunkId) continue;
       count += baseDepthLayers + c.height + (c.type === 'pillar' ? c.obstacleH : 0);
     }
   }
@@ -32,7 +32,7 @@ function countNaiveVoxels() {
 }
 
 // --- A. 床上面 (+Y) の非くり抜き（ワイルドカード貫通）Greedy Meshing ---
-function addFloorTops(mesh) {
+function addFloorTops(mesh, chunkId) {
   const { W, D, S, halfW, halfD } = getGridMetrics();
   const layerH = getLayerHeight();
 
@@ -42,7 +42,7 @@ function addFloorTops(mesh) {
     for (let z = 0; z < D; z++) {
       for (let x = 0; x < W; x++) {
         const c = arena.grid[z][x];
-        if (c.type === 'pit' || c.height < h) continue;
+        if (c.chunkId !== chunkId || c.height < h) continue;
         if (c.height === h && !(c.type === 'pillar' && c.obstacleH > 0)) {
           mask[z][x] = 1;
         } else if (state.noCarveMerge) {
@@ -100,7 +100,7 @@ function addFloorTops(mesh) {
 }
 
 // --- B. 足場側面（マグマ底まで一体の巨大ソリッド壁）の水平マージ ---
-function addPlatformSides(mesh) {
+function addPlatformSides(mesh, chunkId) {
   const { W, D, S, halfW, halfD } = getGridMetrics();
   const layerH = getLayerHeight();
   const magmaY = -state.magmaDepth;
@@ -114,19 +114,24 @@ function addPlatformSides(mesh) {
     return c.height * layerH;
   }
 
+  // この区画のセルの天面高さ（区画外は面を作らない）
+  function getOwnTopY(x, z) {
+    return arena.grid[z][x].chunkId === chunkId ? getPlatformTopY(x, z) : magmaY;
+  }
+
   // Z方向法線の壁（+Z: dz=+1, -Z: dz=-1）をX軸に沿って1枚板マージ
   for (const dz of [1, -1]) {
     for (let z = 0; z < D; z++) {
       let x = 0;
       while (x < W) {
-        const yTop = getPlatformTopY(x, z);
+        const yTop = getOwnTopY(x, z);
         const nbTop = getPlatformTopY(x, z + dz);
         if (yTop <= nbTop) { x++; continue; }
 
         const yBot = state.noCarveMerge ? magmaY : nbTop;
         let run = 1;
         while (x + run < W) {
-          const nTop = getPlatformTopY(x + run, z);
+          const nTop = getOwnTopY(x + run, z);
           const nNb = getPlatformTopY(x + run, z + dz);
           if (nTop !== yTop || nTop <= nNb) break;
           if (!state.noCarveMerge && nNb !== nbTop) break;
@@ -151,14 +156,14 @@ function addPlatformSides(mesh) {
     for (let x = 0; x < W; x++) {
       let z = 0;
       while (z < D) {
-        const yTop = getPlatformTopY(x, z);
+        const yTop = getOwnTopY(x, z);
         const nbTop = getPlatformTopY(x + dx, z);
         if (yTop <= nbTop) { z++; continue; }
 
         const yBot = state.noCarveMerge ? magmaY : nbTop;
         let run = 1;
         while (z + run < D) {
-          const nTop = getPlatformTopY(x, z + run);
+          const nTop = getOwnTopY(x, z + run);
           const nNb = getPlatformTopY(x + dx, z + run);
           if (nTop !== yTop || nTop <= nNb) break;
           if (!state.noCarveMerge && nNb !== nbTop) break;
@@ -180,7 +185,7 @@ function addPlatformSides(mesh) {
 }
 
 // --- C. 遮蔽物（大型Cube）の矩形統合（底面カリング済み・10ポリゴン/塊） ---
-function addCoverBlocks(mesh) {
+function addCoverBlocks(mesh, chunkId) {
   const { W, D, S, halfW, halfD } = getGridMetrics();
   const layerH = getLayerHeight();
 
@@ -189,14 +194,14 @@ function addCoverBlocks(mesh) {
     for (let x = 0; x < W; x++) {
       if (pillarVisited[z][x]) continue;
       const c = arena.grid[z][x];
-      if (c.type !== 'pillar' || c.obstacleH <= 0) continue;
+      if (c.chunkId !== chunkId || c.type !== 'pillar' || c.obstacleH <= 0) continue;
 
       const baseH = c.height;
       const obsH = c.obstacleH;
       let w = 1;
       while (x + w < W && !pillarVisited[z][x + w]) {
         const nc = arena.grid[z][x + w];
-        if (nc.type !== 'pillar' || nc.height !== baseH || nc.obstacleH !== obsH) break;
+        if (nc.chunkId !== chunkId || nc.type !== 'pillar' || nc.height !== baseH || nc.obstacleH !== obsH) break;
         w++;
       }
       let d = 1;
@@ -204,7 +209,7 @@ function addCoverBlocks(mesh) {
         for (let dx = 0; dx < w; dx++) {
           if (pillarVisited[z + d][x + dx]) break outerP;
           const nc = arena.grid[z + d][x + dx];
-          if (nc.type !== 'pillar' || nc.height !== baseH || nc.obstacleH !== obsH) break outerP;
+          if (nc.chunkId !== chunkId || nc.type !== 'pillar' || nc.height !== baseH || nc.obstacleH !== obsH) break outerP;
         }
         d++;
       }

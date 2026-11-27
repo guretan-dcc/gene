@@ -1,28 +1,48 @@
-// PLY書き出し（常に全周フル高さの壁で出力）
-import { state } from '../state.js';
+// PLY書き出し（区画ごとに分割したZIP、または1ファイル）
+import { arena } from '../state.js';
 import { buildTerrainGeometry } from '../geometry/terrain.js';
-import { buildOuterWallGeometry } from '../geometry/outerWall.js';
+import { buildWallGeometry } from '../geometry/walls.js';
 import { buildPedestalGeometry } from '../geometry/pedestals.js';
 import { buildSlopeGeometry } from '../geometry/slopes.js';
 import { buildMagmaGeometry } from '../geometry/magma.js';
 import { showToast } from '../ui/toast.js';
 import { downloadFile } from './download.js';
-import { getExportFilename } from './filename.js';
+import { getExportFilename, getChunkMeshName } from './filename.js';
+import { createZip } from './zip.js';
 
 function isChecked(id) {
   return document.getElementById(id).checked;
 }
 
-function collectGeometries() {
-  // 足場本体（マグマ底まで一体の巨大ソリッドCube）
-  const geos = [buildTerrainGeometry().geometry];
-
-  // 外周巨大壁（PLY書き出し時は手前壁も含めた全周フル高さ）
-  if (state.outerWallEnabled) geos.push(buildOuterWallGeometry(false));
-  if (isChecked('includePedestalsInPLY')) geos.push(buildPedestalGeometry());
-  if (isChecked('includeSlopesInPLY')) geos.push(buildSlopeGeometry());
-  if (isChecked('includeMagmaInPLY')) geos.push(buildMagmaGeometry());
+// 1区画分のジオメトリ（座標はステージ全体の座標系のまま）
+function collectChunkGeometries(chunkId) {
+  const geos = [buildTerrainGeometry(chunkId).geometry, buildWallGeometry(chunkId)];
+  if (isChecked('includePedestalsInPLY')) geos.push(buildPedestalGeometry(chunkId));
+  if (isChecked('includeSlopesInPLY')) geos.push(buildSlopeGeometry(chunkId));
   return geos;
+}
+
+function collectMagma() {
+  return isChecked('includeMagmaInPLY') ? [buildMagmaGeometry()] : [];
+}
+
+function exportSplit() {
+  const files = arena.chunks.map(chunk => ({
+    name: getChunkMeshName(chunk),
+    text: toPLY(collectChunkGeometries(chunk.id)).text
+  }));
+  const magma = collectMagma();
+  if (magma.length > 0) files.push({ name: 'magma.ply', text: toPLY(magma).text });
+
+  downloadFile(getExportFilename('zip'), createZip(files));
+  showToast(`PLY書き出し完了（${files.length}ファイルのZIP）`);
+}
+
+function exportMerged() {
+  const geos = [...arena.chunks.flatMap(c => collectChunkGeometries(c.id)), ...collectMagma()];
+  const { text, faceCount } = toPLY(geos);
+  downloadFile(getExportFilename('ply'), text);
+  showToast(`PLY書き出し完了（1ファイル / ${faceCount.toLocaleString()} tris）`);
 }
 
 // 複数ジオメトリを1つの ASCII PLY 文字列にまとめる（渡したジオメトリは破棄する）
@@ -76,9 +96,8 @@ function toPLY(geos) {
 
 export function exportPLY() {
   try {
-    const { text, faceCount } = toPLY(collectGeometries());
-    downloadFile(getExportFilename('ply'), text);
-    showToast(`PLY書き出し完了（全周高壁 / ${faceCount.toLocaleString()} tris）`);
+    if (isChecked('splitPLY')) exportSplit();
+    else exportMerged();
   } catch (err) {
     console.error(err);
     showToast('PLY書き出し中にエラーが発生しました');

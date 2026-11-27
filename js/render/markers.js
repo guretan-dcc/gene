@@ -10,7 +10,6 @@ export function addSpawnMarkers() {
   const layerH = getLayerHeight();
   const pedH = state.pedestalHeight;
   const playerPadH = getPlayerPadHeight();
-  const markerGroup = view.groups.marker;
   const counts = { melee: 0, ranged: 0 };
 
   const markerH = Math.max(1.7, S * 0.72); // 人間アバター基準(1.7m)を下回らないサイズ
@@ -25,7 +24,6 @@ export function addSpawnMarkers() {
   const arrowMat = new THREE.MeshLambertMaterial({ color: 0xe0f2fe });
 
   view.playerMarkerGroup = new THREE.Group();
-  markerGroup.add(view.playerMarkerGroup); // 表示状態は syncVREyeUI() が設定する
 
   for (let z = 0; z < D; z++) {
     for (let x = 0; x < W; x++) {
@@ -37,6 +35,7 @@ export function addSpawnMarkers() {
       const floorTopY = cell.height * layerH;
 
       if (cell.spawn === 'player') {
+        view.chunkGroups[cell.chunkId].add(view.playerMarkerGroup); // 表示状態は syncVREyeUI() が設定する
         const m = new THREE.Mesh(playerGeo, playerMat);
         m.position.set(wx, floorTopY + playerPadH + 1.7 / 2 + 0.02, wz);
         view.playerMarkerGroup.add(m);
@@ -50,12 +49,12 @@ export function addSpawnMarkers() {
         counts.melee++;
         const m = new THREE.Mesh(meleeGeo, meleeMat);
         m.position.set(wx, floorTopY + pedH + markerH / 2 + 0.04, wz);
-        markerGroup.add(m);
+        view.chunkGroups[cell.chunkId].add(m);
       } else if (cell.spawn === 'ranged') {
         counts.ranged++;
         const m = new THREE.Mesh(rangedGeo, rangedMat);
         m.position.set(wx, floorTopY + pedH + markerH / 2 + 0.04, wz);
-        markerGroup.add(m);
+        view.chunkGroups[cell.chunkId].add(m);
       }
     }
   }

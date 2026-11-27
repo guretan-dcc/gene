@@ -4,13 +4,13 @@ import { PALETTE } from '../config/constants.js';
 import { getLayerHeight, getGridMetrics, cellCenterX, cellCenterZ } from '../core/grid.js';
 import { view } from './context.js';
 
-function addJumpPad({ x, z, wx, wz, floorY, S }) {
+function addJumpPad({ group, x, z, wx, wz, floorY, S }) {
   const pad = new THREE.Mesh(
     new THREE.BoxGeometry(S * 0.78, 0.16, S * 0.78),
     new THREE.MeshLambertMaterial({ color: 0x164e63 })
   );
   pad.position.set(wx, floorY + 0.08, wz);
-  view.groups.trap.add(pad);
+  group.add(pad);
 
   const ring = new THREE.Mesh(
     new THREE.TorusGeometry(S * 0.28, S * 0.05, 6, 16),
@@ -18,34 +18,34 @@ function addJumpPad({ x, z, wx, wz, floorY, S }) {
   );
   ring.rotation.x = Math.PI / 2;
   ring.position.set(wx, floorY + 0.28, wz);
-  view.groups.trap.add(ring);
+  group.add(ring);
   view.animatedItems.push({ type: 'jumppad', mesh: ring, baseY: floorY + 0.22, phase: (x + z) * 0.7 });
 }
 
-function addFire({ x, z, wx, wz, floorY, S }) {
+function addFire({ group, x, z, wx, wz, floorY, S }) {
   const grate = new THREE.Mesh(
     new THREE.BoxGeometry(S * 0.74, 0.12, S * 0.74),
     new THREE.MeshLambertMaterial({ color: 0x7c2d12 })
   );
   grate.position.set(wx, floorY + 0.06, wz);
-  view.groups.trap.add(grate);
+  group.add(grate);
 
   const flame = new THREE.Mesh(
     new THREE.ConeGeometry(S * 0.26, S * 1.15, 6),
     new THREE.MeshBasicMaterial({ color: PALETTE.fireTrap, transparent: true, opacity: 0.85 })
   );
   flame.position.set(wx, floorY + S * 0.62, wz);
-  view.groups.trap.add(flame);
+  group.add(flame);
   view.animatedItems.push({ type: 'fire', mesh: flame, baseY: floorY + 0.12, maxH: S * 1.15, phase: (x * 1.3 + z * 0.5) });
 }
 
-function addSpike({ x, z, wx, wz, floorY, S }) {
+function addSpike({ group, x, z, wx, wz, floorY, S }) {
   const basePlate = new THREE.Mesh(
     new THREE.BoxGeometry(S * 0.76, 0.10, S * 0.76),
     new THREE.MeshLambertMaterial({ color: PALETTE.spikeBase })
   );
   basePlate.position.set(wx, floorY + 0.05, wz);
-  view.groups.trap.add(basePlate);
+  group.add(basePlate);
 
   const spikeGrp = new THREE.Group();
   const spGeo = new THREE.ConeGeometry(S * 0.10, S * 0.52, 4);
@@ -59,17 +59,17 @@ function addSpike({ x, z, wx, wz, floorY, S }) {
     }
   }
   spikeGrp.position.set(wx, floorY + 0.08, wz);
-  view.groups.trap.add(spikeGrp);
+  group.add(spikeGrp);
   view.animatedItems.push({ type: 'spike', mesh: spikeGrp, baseY: floorY - S * 0.16, riseH: S * 0.30, phase: (x * 0.8 + z * 1.1) });
 }
 
-function addConveyor({ cell, wx, wz, floorY, S }) {
+function addConveyor({ group, cell, wx, wz, floorY, S }) {
   const belt = new THREE.Mesh(
     new THREE.BoxGeometry(S * 0.86, 0.10, S * 0.86),
     new THREE.MeshLambertMaterial({ color: 0x064e3b })
   );
   belt.position.set(wx, floorY + 0.05, wz);
-  view.groups.trap.add(belt);
+  group.add(belt);
 
   const chev = new THREE.Mesh(
     new THREE.ConeGeometry(S * 0.20, S * 0.36, 3),
@@ -80,7 +80,7 @@ function addConveyor({ cell, wx, wz, floorY, S }) {
   else if (cell.trapDir.x === -1) chev.rotation.z = Math.PI / 2;
   else if (cell.trapDir.z === -1) chev.rotation.z = Math.PI;
   chev.position.set(wx, floorY + 0.16, wz);
-  view.groups.trap.add(chev);
+  group.add(chev);
   view.animatedItems.push({
     type: 'conveyor',
     mesh: chev,
@@ -113,6 +113,7 @@ export function addTraps() {
       counts[cell.trap]++;
       TRAP_BUILDERS[cell.trap]({
         cell, x, z, S,
+        group: view.chunkGroups[cell.chunkId],
         wx: cellCenterX(x),
         wz: cellCenterZ(z),
         floorY: cell.height * layerH

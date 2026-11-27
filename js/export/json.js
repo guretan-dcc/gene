@@ -1,10 +1,10 @@
 // 配置JSON書き出し
 import { state, arena } from '../state.js';
 import { getLayerHeight, getPlayerPadHeight, cellCenterX, cellCenterZ } from '../core/grid.js';
-import { DOOR_HEIGHT } from '../render/doors.js';
+import { DOOR_HEIGHT } from '../config/constants.js';
 import { showToast } from '../ui/toast.js';
 import { downloadFile } from './download.js';
-import { getExportFilename } from './filename.js';
+import { getExportFilename, getChunkMeshName } from './filename.js';
 
 function round(value, digits = 3) {
   return Number(value.toFixed(digits));
@@ -105,6 +105,16 @@ function buildLayoutData() {
     };
   });
 
+  // visibleChunks: その区画にプレイヤーがいる間、描画する区画
+  const chunks = arena.chunks.map(c => ({
+    id: c.id,
+    kind: c.kind,
+    roomId: c.roomId,
+    doorId: c.doorId,
+    mesh: getChunkMeshName(c),
+    visibleChunks: c.visible
+  }));
+
   const slopes = arena.slopes.map(sl => ({
     gridX: sl.x,
     gridZ: sl.z,
@@ -116,7 +126,6 @@ function buildLayoutData() {
 
   return {
     meta: {
-      chamberShape: state.chamberShape,
       tier: state.tier,
       gridWidth: state.gridWidth,
       gridDepth: state.gridDepth,
@@ -124,12 +133,12 @@ function buildLayoutData() {
       layerHeight: round(layerH),
       coverBlockSize: state.coverBlockSize,
       magmaDepth: state.magmaDepth,
-      chasmGapCells: state.chasmGap,
-      outerWallHeightLayers: state.outerWallEnabled ? state.outerWallHeight : 0,
+      roomWallHeight: state.roomWallHeight,
       seed: state.seed
     },
     rooms,
     doors,
+    chunks,
     playerSpawn,
     enemySpawns,
     slopes,

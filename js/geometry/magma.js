@@ -7,7 +7,7 @@ import { MeshBuilder } from './MeshBuilder.js';
 export function buildMagmaGeometry() {
   const { W, D, S } = getGridMetrics();
 
-  const extra = state.chasmGap * S + state.magmaMargin;
+  const extra = state.magmaMargin;
   const hx = (W * S) / 2 + extra;
   const hz = (D * S) / 2 + extra;
   const y = -state.magmaDepth;

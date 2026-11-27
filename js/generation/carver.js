@@ -9,6 +9,7 @@ export function createEmptyGrid(W, D) {
       height: 0,       // 0..3 (床の標高)
       obstacleH: 0,    // 遮蔽物の層数
       roomId: null,    // 所属する部屋（通路は null）
+      chunkId: null,   // 描画区画（部屋または通路）
       spawn: 'none',   // 'none' | 'player' | 'melee' | 'ranged'
       trap: 'none',    // 'none' | 'jumppad' | 'fire' | 'spike' | 'conveyor'
       trapDir: { x: 0, z: -1 }

@@ -4,17 +4,18 @@ import { PALETTE } from '../config/constants.js';
 import { getLayerHeight, getGridMetrics, cellKey } from '../core/grid.js';
 import { MeshBuilder } from './MeshBuilder.js';
 
-export function buildSlopeGeometry() {
+export function buildSlopeGeometry(chunkId) {
   const { S, halfW, halfD } = getGridMetrics();
   const layerH = getLayerHeight();
   const mesh = new MeshBuilder();
   const col = new THREE.Color(PALETTE.slope);
 
   // 隣り合う同向き・同標高のスロープを1つの幅広ウェッジへ結合してポリゴン削減
-  const slopeMap = new Map(arena.slopes.map(sl => [cellKey(sl.x, sl.z), sl]));
+  const slopes = arena.slopes.filter(sl => arena.grid[sl.z][sl.x].chunkId === chunkId);
+  const slopeMap = new Map(slopes.map(sl => [cellKey(sl.x, sl.z), sl]));
   const visited = new Set();
 
-  for (const sl of arena.slopes) {
+  for (const sl of slopes) {
     if (visited.has(cellKey(sl.x, sl.z))) continue;
 
     // 進行方向と直交する軸に沿って連続セルを統合

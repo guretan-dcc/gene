@@ -1,5 +1,4 @@
 export const state = {
-  chamberShape: 'octagonal', // 'octagonal' | 'rectangular'
   tier: 'gold',
   roomLayers: 5,        // 部屋の段数（入口・ボス部屋を含む）
   branchCount: 2,       // 左右に分岐する段の数
@@ -11,15 +10,12 @@ export const state = {
   cellSize: 2.0,
   seed: 2048,
   magmaDepth: 14,       // マグマ面までの垂直距離(m)
-  chasmGap: 5,          // 足場から外周巨大壁までのマグマ谷幅(マス)
   coverBlockSize: 2,    // 遮蔽物Cubeサイズ (2 = 2x2大型Cube, 1 = 1x1)
   coverDensity: 0.10,
   wallHeight: 2,
   magmaMargin: 90,
-  outerWallEnabled: true,
-  outerWallHeight: 12,
-  previewCutFrontWall: true,
   showDoors: true,
+  roomWallHeight: 5,    // 部屋の壁の高さ(m)
   autoTraps: false,
   jumpPadCount: 6,
   sawCount: 4,
@@ -39,6 +35,7 @@ export const arena = {
   grid: [],       // grid[z][x] のセル
   rooms: [],      // { id, layer, lane, type, x0, x1, z0, z1, height }
   doors: [],      // { id, from, to, x, z, width, height }
+  chunks: [],     // 描画区画 { id, kind, roomId, doorId, visible }
   slopes: [],     // { x, z, dirX, dirZ, lowH, highH }
   sawTracks: []   // 往復回転ノコギリの軌道
 };

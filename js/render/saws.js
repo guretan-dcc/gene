@@ -9,6 +9,7 @@ export function addSawTracks() {
   const layerH = getLayerHeight();
 
   for (const saw of arena.sawTracks) {
+    const group = view.chunkGroups[arena.grid[saw.z][saw.startX].chunkId];
     const x0 = cellCenterX(saw.startX);
     const x1 = cellCenterX(saw.endX);
     const wz = cellCenterZ(saw.z);
@@ -20,7 +21,7 @@ export function addSawTracks() {
       new THREE.MeshLambertMaterial({ color: 0x0f172a })
     );
     rail.position.set((x0 + x1) / 2, fy + 0.05, wz);
-    view.groups.trap.add(rail);
+    group.add(rail);
 
     const bladeGrp = new THREE.Group();
     const disc = new THREE.Mesh(
@@ -34,7 +35,7 @@ export function addSawTracks() {
     rim.rotation.x = Math.PI / 2;
     bladeGrp.add(disc, rim);
     bladeGrp.position.set((x0 + x1) / 2, fy + 0.24, wz);
-    view.groups.trap.add(bladeGrp);
+    group.add(bladeGrp);
 
     view.animatedItems.push({
       type: 'saw',

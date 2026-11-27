@@ -40,5 +40,6 @@ export const PALETTE = {
   conveyor:  0x10b981
 };
 
+export const DOOR_HEIGHT = 3;      // 扉と出入口の高さ(m)
 export const VR_EYE_HEIGHT = 1.6; // VR標準目線高さ(m)
 export const VR_WALK_SPEED = 4.2; // VRChat歩行速度目安(m/s)

@@ -9,7 +9,7 @@ import { showToast } from './toast.js';
 // data-size と data-vr-preset の値の並び順
 const SIZE_KEYS = ['roomLayers', 'branchCount', 'roomSize', 'corridorLength', 'cellSize'];
 // スケールに応じて連動調整する項目
-const VR_PRESET_KEYS = ['enemiesPerRoom', 'magmaDepth', 'chasmGap', 'outerWallHeight'];
+const VR_PRESET_KEYS = ['enemiesPerRoom', 'magmaDepth', 'roomWallHeight'];
 
 // カンマ区切りの値を state と入力欄の両方へ反映
 function applyValues(keys, csv) {

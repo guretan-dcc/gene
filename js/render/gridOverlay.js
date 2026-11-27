@@ -21,5 +21,5 @@ export function addGridOverlay() {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
   const mat = new THREE.LineBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.16 });
-  view.groups.gridOverlay.add(new THREE.LineSegments(geo, mat));
+  view.gridOverlay.add(new THREE.LineSegments(geo, mat));
 }

@@ -1,13 +1,6 @@
 // 状態に合わせてUI表示をそろえる
-import { state } from '../state.js';
 import { camCtrl } from '../camera/cameraState.js';
 import { view } from '../render/context.js';
-
-export function syncFrontWallUI() {
-  const cut = state.previewCutFrontWall;
-  document.getElementById('frontCutBadge').style.display = cut ? 'inline-block' : 'none';
-  document.getElementById('previewCutFrontWall').checked = cut;
-}
 
 export function syncVREyeUI() {
   const isVR = camCtrl.mode === 'vr';

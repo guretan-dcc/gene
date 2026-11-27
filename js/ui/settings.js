@@ -11,13 +11,13 @@ const REGENERATE_INPUTS = [
 ];
 // 見た目の再構築だけで反映できる項目
 const REBUILD_INPUTS = [
-  'chamberShape', 'tier', 'magmaDepth', 'chasmGap', 'magmaMargin', 'outerWallHeight', 'pedestalHeight'
+  'tier', 'magmaDepth', 'magmaMargin', 'roomWallHeight', 'pedestalHeight'
 ];
 const REGENERATE_CHECKBOXES = ['heightVariation', 'autoTraps'];
-const REBUILD_CHECKBOXES = ['outerWallEnabled', 'previewCutFrontWall', 'showDoors', 'showGridOverlay'];
+const REBUILD_CHECKBOXES = ['showDoors', 'showGridOverlay'];
 
 // 文字列のまま state に入れる項目（それ以外は数値化）
-const STRING_KEYS = new Set(['chamberShape', 'tier']);
+const STRING_KEYS = new Set(['tier']);
 
 function apply(regenerate) {
   if (regenerate) generateArena();
