@@ -5,7 +5,7 @@ import { rebuildScene } from '../render/rebuildScene.js';
 
 // 変更時にステージを再生成する項目
 const REGENERATE_INPUTS = [
-  'roomLayers', 'branchCount', 'roomSize', 'corridorLength', 'cellSize', 'seed',
+  'roomCount', 'roomSize', 'cellSize', 'seed',
   'coverBlockSize', 'coverDensity', 'wallHeight',
   'jumpPadCount', 'sawCount', 'floorTrapCount', 'conveyorCount', 'enemiesPerRoom'
 ];

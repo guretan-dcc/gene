@@ -83,9 +83,8 @@ function buildLayoutData() {
 
   const rooms = arena.rooms.map(r => ({
     id: r.id,
-    layer: r.layer,
-    lane: r.lane,
     type: r.type,
+    layout: r.layout,
     center: toPosition((r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2, r.height),
     size: { x: round((r.x1 - r.x0 + 1) * state.cellSize), z: round((r.z1 - r.z0 + 1) * state.cellSize) },
     exits: arena.doors.filter(d => d.from === r.id).map(d => d.id)

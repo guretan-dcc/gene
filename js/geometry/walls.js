@@ -20,22 +20,26 @@ export function buildWallGeometry(chunkId) {
   return mesh.build();
 }
 
-// 区画の天井高さ: 部屋は床＋壁の高さ、通路は高い方の端＋扉の高さ
+// 区画の天井高さ: 部屋は一番高い床＋壁の高さ、通路は床＋扉の高さ
 function getChunkTopY(chunk) {
   const layerH = getLayerHeight();
   if (chunk.kind === 'room') {
-    return arena.rooms[chunk.roomId].height * layerH + state.roomWallHeight;
+    const room = arena.rooms[chunk.roomId];
+    let highest = Math.max(room.height, room.exitHeight);
+    for (let z = room.z0; z <= room.z1; z++) {
+      for (let x = room.x0; x <= room.x1; x++) highest = Math.max(highest, arena.grid[z][x].height);
+    }
+    return highest * layerH + state.roomWallHeight;
   }
-  const door = arena.doors[chunk.doorId];
-  const highest = Math.max(arena.rooms[door.from].height, arena.rooms[door.to].height);
-  return highest * layerH + DOOR_HEIGHT;
+  return arena.doors[chunk.doorId].height * layerH + DOOR_HEIGHT;
 }
 
 // そのセルの辺に必要な壁の下端（不要なら null）
 function getWallBottom(chunk, x, z, { dx, dz }) {
   const cell = arena.grid[z][x];
   if (cell.chunkId !== chunk.id) return null;
-  const floorY = cell.height * getLayerHeight();
+  // 溶岩の上は水面（マグマ面）まで壁を下ろす
+  const floorY = cell.type === 'pit' ? -state.magmaDepth : cell.height * getLayerHeight();
   const next = isInGrid(x + dx, z + dz) ? arena.grid[z + dz][x + dx] : null;
 
   if (!next || next.chunkId === null) return floorY;      // 外側: 床から天井まで

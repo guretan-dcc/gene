@@ -24,7 +24,7 @@ function countNaiveVoxels(chunkId) {
   let count = 0;
   for (const row of arena.grid) {
     for (const c of row) {
-      if (c.chunkId !== chunkId) continue;
+      if (c.chunkId !== chunkId || c.type === 'pit') continue;
       count += baseDepthLayers + c.height + (c.type === 'pillar' ? c.obstacleH : 0);
     }
   }
@@ -42,7 +42,7 @@ function addFloorTops(mesh, chunkId) {
     for (let z = 0; z < D; z++) {
       for (let x = 0; x < W; x++) {
         const c = arena.grid[z][x];
-        if (c.chunkId !== chunkId || c.height < h) continue;
+        if (c.chunkId !== chunkId || c.type === 'pit' || c.height < h) continue;
         if (c.height === h && !(c.type === 'pillar' && c.obstacleH > 0)) {
           mask[z][x] = 1;
         } else if (state.noCarveMerge) {

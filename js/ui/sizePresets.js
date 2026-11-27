@@ -7,7 +7,7 @@ import { resetCameraOverview, setCameraVREyeView } from '../camera/views.js';
 import { showToast } from './toast.js';
 
 // data-size と data-vr-preset の値の並び順
-const SIZE_KEYS = ['roomLayers', 'branchCount', 'roomSize', 'corridorLength', 'cellSize'];
+const SIZE_KEYS = ['roomCount', 'roomSize', 'cellSize'];
 // スケールに応じて連動調整する項目
 const VR_PRESET_KEYS = ['enemiesPerRoom', 'magmaDepth', 'roomWallHeight'];
 

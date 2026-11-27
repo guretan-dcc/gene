@@ -23,7 +23,7 @@ VS Code の Live Server や GitHub Pages でも動きます。Three.js r128 と 
 | `js/state.js` | 設定値と生成データ |
 | `js/config/` | 定数・ティア配色 |
 | `js/core/` | 乱数・グリッド座標の共通処理 |
-| `js/generation/` | 部屋グラフ・彫刻・遮蔽物・敵・トラップの生成 |
+| `js/generation/` | 部屋の並び・地形・彫刻・遮蔽物・敵・トラップの生成 |
 | `js/geometry/` | メッシュ生成（PLY出力と共用） |
 | `js/render/` | Three.js のシーン構築とアニメーション |
 | `js/camera/` / `js/input/` | 視点・操作・クリック編集 |
@@ -32,9 +32,9 @@ VS Code の Live Server や GitHub Pages でも動きます。Three.js r128 と 
 
 ## ステージ構造
 
-- 入口の部屋から最奥のボス部屋まで、段ごとに部屋が並びます。
-- 中間の段は左右に分岐できます。片側は戦闘部屋、もう片側は報酬部屋（`shop` / `life` / `weapon`）です。
-- 分岐が連続する場合は同じ側の部屋同士がつながります。
+- 入口の部屋から最奥のボス部屋まで一本道です。部屋は左右にずれ、通路は途中で折れます。
+- 戦闘部屋の地形は `terraces`（左右の高台）/ `dais`（中央の高台）/ `bridge`（溶岩の橋）/ `islands`（2本の橋と中央の島）/ `ridge`（丘越え）/ `zigzag`（蛇行）の6種類で、一巡するまで重複しません。
+- 地形の追加は `js/generation/layouts.js` に関数を足して `COMBAT_LAYOUTS` に登録します。
 - 部屋の入口には扉があり、JSON の `doors`（`fromRoom` → `toRoom`）に出力します。扉の開閉処理はゲーム側で実装します。
 
 ## 区画と描画負荷

@@ -1,7 +1,7 @@
 // 敵スポーン自動配置（戦闘部屋とボス部屋のみ）
 import { state, arena } from '../state.js';
 import { shuffle } from '../core/random.js';
-import { isCombatRoom, isWalkable } from '../core/grid.js';
+import { isCombatRoom, isWalkable, cellKey, toCellKeySet } from '../core/grid.js';
 
 export function assignEnemySpawns(rng) {
   for (const row of arena.grid) {
@@ -13,12 +13,13 @@ export function assignEnemySpawns(rng) {
 }
 
 function spawnInRoom(room, rng) {
+  const slopeKeys = toCellKeySet(arena.slopes);
   const candidates = [];
   // 入口側の3行には配置しない（扉を抜けた直後の安全地帯）
   for (let z = room.z0; z <= room.z1 - 3; z++) {
     for (let x = room.x0; x <= room.x1; x++) {
       const cell = arena.grid[z][x];
-      if (isWalkable(cell)) candidates.push(cell);
+      if (isWalkable(cell) && !slopeKeys.has(cellKey(x, z))) candidates.push(cell);
     }
   }
   shuffle(candidates, rng);

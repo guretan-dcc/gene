@@ -9,7 +9,6 @@ function sumOf(items, key) {
 
 export function updateStats(meshInfo, counts, trapCounts) {
   const { W, D, S } = getGridMetrics();
-  const branches = arena.rooms.filter(r => r.lane === 'left').length;
   const theme = getTierTheme();
   const terrain = sumOf(meshInfo, 'terrainTriangles');
   const naive = sumOf(meshInfo, 'naiveTriangles');
@@ -21,7 +20,7 @@ export function updateStats(meshInfo, counts, trapCounts) {
 
   document.getElementById('stats').innerHTML =
     `Tier: ${theme.label} / 全体 ${W}×${D} (${(W * S).toFixed(1)}m×${(D * S).toFixed(1)}m)<br>` +
-    `部屋: ${arena.rooms.length} / 分岐: ${branches} / 扉: ${arena.doors.length}<br>` +
+    `部屋: ${arena.rooms.length} / 扉: ${arena.doors.length}<br>` +
     `壁の高さ: ${state.roomWallHeight}m / 地形 ${terrain} tris (-${reductionPct}%)<br>` +
     `スロープ: ${arena.slopes.length}マス(${sumOf(meshInfo, 'slopeTriangles')}tris) / 頂点: ${(sumOf(meshInfo, 'vertices') + 4).toLocaleString()}<br>` +
     `敵(${counts.melee + counts.ranged}): 近${counts.melee} 遠${counts.ranged}<br>` +

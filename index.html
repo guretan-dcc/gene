@@ -120,15 +120,15 @@
       <div class="text-xs font-bold text-sky-400">1. 部屋の構成・スケール設定</div>
 
       <div class="flex flex-col gap-1.5">
-        <span class="text-[11px] text-slate-400">クイックサイズ（段数・分岐・部屋・通路・1マス幅）</span>
+        <span class="text-[11px] text-slate-400">クイックサイズ（部屋数・広さ・1マス幅）</span>
         <div class="grid grid-cols-3 gap-1.5">
-          <button data-size="4,1,9,4,2" data-vr-preset="3,12,4" class="quick-size-btn py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-200 font-medium transition">
+          <button data-size="4,11,2" data-vr-preset="3,12,4" class="quick-size-btn py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-200 font-medium transition">
             小
           </button>
-          <button data-size="5,2,11,5,2" data-vr-preset="4,14,5" class="quick-size-btn py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-200 font-medium transition">
+          <button data-size="6,13,2" data-vr-preset="4,14,5" class="quick-size-btn py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-200 font-medium transition">
             標準
           </button>
-          <button data-size="7,3,13,6,2.5" data-vr-preset="6,18,6" class="quick-size-btn py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-200 font-medium transition">
+          <button data-size="8,17,2.5" data-vr-preset="6,18,6" class="quick-size-btn py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-200 font-medium transition">
             大
           </button>
         </div>
@@ -148,32 +148,20 @@
       </div>
 
       <div class="flex items-center gap-2 text-xs">
-        <label for="roomLayers" class="text-slate-300 w-24 shrink-0">部屋の段数</label>
-        <input type="range" id="roomLayers" min="3" max="8" step="1" value="5" class="flex-1" />
-        <span id="roomLayersVal" class="w-9 text-right font-mono text-slate-300">5</span>
-      </div>
-
-      <div class="flex items-center gap-2 text-xs">
-        <label for="branchCount" class="text-slate-300 w-24 shrink-0">分岐する段数</label>
-        <input type="range" id="branchCount" min="0" max="6" step="1" value="2" class="flex-1" />
-        <span id="branchCountVal" class="w-9 text-right font-mono text-slate-300">2</span>
+        <label for="roomCount" class="text-slate-300 w-24 shrink-0">部屋数</label>
+        <input type="range" id="roomCount" min="3" max="10" step="1" value="6" class="flex-1" />
+        <span id="roomCountVal" class="w-9 text-right font-mono text-slate-300">6</span>
       </div>
 
       <div class="flex items-center gap-2 text-xs">
         <label for="roomSize" class="text-slate-300 w-24 shrink-0">部屋の広さ(マス)</label>
-        <input type="range" id="roomSize" min="9" max="17" step="2" value="11" class="flex-1" />
-        <span id="roomSizeVal" class="w-9 text-right font-mono text-slate-300">11</span>
-      </div>
-
-      <div class="flex items-center gap-2 text-xs">
-        <label for="corridorLength" class="text-slate-300 w-24 shrink-0">通路の長さ(マス)</label>
-        <input type="range" id="corridorLength" min="4" max="10" step="1" value="5" class="flex-1" />
-        <span id="corridorLengthVal" class="w-9 text-right font-mono text-slate-300">5</span>
+        <input type="range" id="roomSize" min="11" max="19" step="2" value="13" class="flex-1" />
+        <span id="roomSizeVal" class="w-9 text-right font-mono text-slate-300">13</span>
       </div>
 
       <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
         <input type="checkbox" id="heightVariation" checked class="rounded border-slate-600 bg-slate-900" />
-        <span>部屋ごとに高低差をつける（通路はスロープ接続）</span>
+        <span>部屋の出口で高低差をつける</span>
       </label>
 
       <div class="flex items-center gap-2 text-xs">
@@ -208,8 +196,8 @@
 
       <div class="flex items-center gap-2 text-xs">
         <label for="coverDensity" class="text-slate-300 w-24 shrink-0">遮蔽物密度</label>
-        <input type="range" id="coverDensity" min="0" max="0.34" step="0.02" value="0.10" class="flex-1" />
-        <span id="coverDensityVal" class="w-9 text-right font-mono text-slate-300">0.10</span>
+        <input type="range" id="coverDensity" min="0" max="0.34" step="0.02" value="0.08" class="flex-1" />
+        <span id="coverDensityVal" class="w-9 text-right font-mono text-slate-300">0.08</span>
       </div>
 
       <div class="flex items-center gap-2 text-xs">

@@ -61,7 +61,7 @@ export function setCameraPlayerView() {
   const pCoord = getPlayerCoord();
   const pCell = arena.grid[pCoord.z] && arena.grid[pCoord.z][pCoord.x];
   const pY = pCell ? pCell.height * getLayerHeight() : 0;
-  camCtrl.target.set(0, pY + state.cellSize * 0.9, halfD - state.cellSize * 5);
+  camCtrl.target.set(cellCenterX(pCoord.x), pY + state.cellSize * 0.9, halfD - state.cellSize * 5);
   camCtrl.theta = 0;
   camCtrl.phi = 1.24;
   camCtrl.radius = Math.max(14, state.cellSize * 8);

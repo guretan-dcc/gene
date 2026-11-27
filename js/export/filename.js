@@ -1,7 +1,7 @@
 import { state, arena } from '../state.js';
 
 export function getExportFilename(extension) {
-  return `stage_rooms${state.roomLayers}_branch${state.branchCount}_${state.seed}.${extension}`;
+  return `stage_rooms${state.roomCount}_${state.seed}.${extension}`;
 }
 
 // 分割書き出し時の区画ごとのPLY名
