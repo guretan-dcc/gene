@@ -50,7 +50,7 @@ export const arenaRoom = {
       for (let i = 0; i < 6; i++) {
         const cx = x * halfW + (i % 3 - 1) * 1.15;
         const cf = f * back + Math.floor(i / 3) * 0.75;
-        kit.box(cx - 0.5, cx + 0.5, 0, 0.015, cf, cf + 0.62, style.side);
+        kit.floorMark(cx - 0.5, cx + 0.5, 0.015, cf, cf + 0.62, style.side);
       }
     }
   }

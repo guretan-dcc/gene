@@ -1,6 +1,7 @@
 // ローポリ幅広スロープジオメトリ（並列スロープを自動結合し4三角形/基）
 import { arena } from '../state.js';
 import { getChunkStyle } from './styles.js';
+import { getRoomEdgesX } from './bounds.js';
 import { getLayerHeight, getGridMetrics, cellKey } from '../core/grid.js';
 import { MeshBuilder } from './MeshBuilder.js';
 
@@ -79,7 +80,7 @@ export function buildSlopeGeometry(chunkId, forCollision = false) {
     }
 
     if (sl.stairs && !forCollision) addSteps(mesh, [lA, lB, hA, hB], yH, col);
-    else if (sl.thin) addSlab(mesh, [lA, lB, hA, hB], col, new THREE.Color(style.trim));
+    else if (sl.thin) addSlab(mesh, [lA, lB, hA, hB], col, new THREE.Color(style.trim), isAtWall(chunkId));
     else addWedge(mesh, [lA, lB, hA, hB, bA, bB], col);
   }
 
@@ -94,8 +95,16 @@ function addWedge(mesh, [lA, lB, hA, hB, bA, bB], color) {
   mesh.addTriangle(lB, bB, hB, color);
 }
 
-// 下が空いた板
-function addSlab(mesh, [lA, lB, hA, hB], color, edgeColor) {
+// その点が部屋の左右の壁に接しているか調べる関数を返す
+function isAtWall(chunkId) {
+  const { kind, roomId } = arena.chunks[chunkId];
+  if (kind !== 'room') return () => false;
+  const edges = getRoomEdgesX(arena.rooms[roomId]);
+  return p => edges.some(x => Math.abs(p[0] - x) < 0.001);
+}
+
+// 下が空いた板（壁に接する側面は省く）
+function addSlab(mesh, [lA, lB, hA, hB], color, edgeColor, atWall) {
   const down = p => [p[0], p[1] - SLAB_THICKNESS, p[2]];
   const quad = (a, b, c, d, col) => {
     mesh.addTriangle(a, b, c, col);
@@ -103,8 +112,8 @@ function addSlab(mesh, [lA, lB, hA, hB], color, edgeColor) {
   };
   quad(lA, lB, hB, hA, color);
   quad(down(lA), down(hA), down(hB), down(lB), edgeColor);
-  quad(lA, hA, down(hA), down(lA), edgeColor);
-  quad(lB, down(lB), down(hB), hB, edgeColor);
+  if (!(atWall(lA) && atWall(hA))) quad(lA, hA, down(hA), down(lA), edgeColor);
+  if (!(atWall(lB) && atWall(hB))) quad(lB, down(lB), down(hB), hB, edgeColor);
 }
 
 // 低い側から高い側へ向かう段
@@ -120,7 +129,11 @@ function addSteps(mesh, [lA, lB, hA], yH, color) {
     const alongX = lA[0] !== hA[0];
     const xRange = alongX ? xs.slice(2) : [lA[0], lB[0]];
     const zRange = alongX ? [lA[2], lB[2]] : zs.slice(2);
-    mesh.addNoBottomBox(Math.min(...xRange), Math.max(...xRange), yL, at(yL, yH, t1),
-      Math.min(...zRange), Math.max(...zRange), color);
+    // 底面と、次の段（または高い床）に隠れる奥の面は省く
+    const far = alongX
+      ? (hA[0] > lA[0] ? '+x' : '-x')
+      : (hA[2] > lA[2] ? '+z' : '-z');
+    mesh.addBox(Math.min(...xRange), Math.max(...xRange), yL, at(yL, yH, t1),
+      Math.min(...zRange), Math.max(...zRange), color, ['-y', far]);
   }
 }

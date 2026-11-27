@@ -5,9 +5,10 @@ import { DOOR_HEIGHT, PALETTE } from '../config/constants.js';
 import { ROOMS } from '../rooms/index.js';
 import { getLayerHeight, getGridMetrics, cellCenterX } from '../core/grid.js';
 import { MeshBuilder } from './MeshBuilder.js';
-import { getChunkTopY } from './bounds.js';
+import { getChunkTopY, getChunkBottomY } from './bounds.js';
 
 const SKYLIGHT_COLOR = 0xf4fbff;
+const EPSILON = 0.001;
 
 function createKit(room, solid, glow) {
   const { S, halfD } = getGridMetrics();
@@ -24,11 +25,31 @@ function createKit(room, solid, glow) {
     length: room.depth * S,
     top: getChunkTopY(arena.chunks[room.id]) - originY,
     exitY: (room.exitHeight - room.height) * layerH,
-    lava: -state.magmaDepth - originY,
+    lava: getChunkBottomY(arena.chunks[room.id]) - originY,
 
+    // 溶岩より下は切り詰め、部屋の中から見えない面（壁の外向き・床下・壁より上）は作らない
     box(x0, x1, y0, y1, f0, f1, color) {
-      solid.addBox(originX + x0, originX + x1, originY + y0, originY + y1,
-        originZ - f1, originZ - f0, new THREE.Color(color));
+      const bottom = Math.max(y0, kit.lava);
+      if (y1 <= bottom) return;
+
+      const onFloor = [kit.lava, 0, kit.exitY].some(y => Math.abs(bottom - y) < EPSILON);
+      const skip = [
+        onFloor && '-y',
+        y1 >= kit.top - EPSILON && '+y',
+        x0 <= -kit.halfW + EPSILON && '-x',
+        x1 >= kit.halfW - EPSILON && '+x',
+        f0 <= EPSILON && '+z',
+        f1 >= kit.length - EPSILON && '-z'
+      ];
+      solid.addBox(originX + x0, originX + x1, originY + bottom, originY + y1,
+        originZ - f1, originZ - f0, new THREE.Color(color), skip);
+    },
+    // 床の上に貼る模様（上面だけ）
+    floorMark(x0, x1, y, f0, f1, color) {
+      const wy = originY + y;
+      const [a, b] = [originX + x0, originX + x1];
+      const [c, d] = [originZ - f1, originZ - f0];
+      solid.addQuad([a, wy, c], [a, wy, d], [b, wy, d], [b, wy, c], [0, 1, 0], new THREE.Color(color));
     },
     // side(-1: 左, 1: 右) に合わせて左右反転した位置へ置く（x0, x1 は中央からの距離）
     mirrorBox(side, x0, x1, y0, y1, f0, f1, color) {
@@ -54,16 +75,16 @@ function createKit(room, solid, glow) {
       const bar = (a, b, c, d) => kit.mirrorBox(side, kit.halfW - 0.18, kit.halfW, c, d, a, b, color);
       bar(f0, f1, y0, y0 + 0.25);
       bar(f0, f1, y1 - 0.25, y1);
-      bar(f0, f0 + 0.25, y0, y1);
-      bar(f1 - 0.25, f1, y0, y1);
+      bar(f0, f0 + 0.25, y0 + 0.25, y1 - 0.25);
+      bar(f1 - 0.25, f1, y0 + 0.25, y1 - 0.25);
     },
     // 奥の壁の枠
     farFrame(x0, x1, y0, y1, color) {
       const bar = (a, b, c, d) => kit.box(a, b, c, d, kit.length - 0.18, kit.length, color);
       bar(x0, x1, y0, y0 + 0.25);
       bar(x0, x1, y1 - 0.25, y1);
-      bar(x0, x0 + 0.25, y0, y1);
-      bar(x1 - 0.25, x1, y0, y1);
+      bar(x0, x0 + 0.25, y0 + 0.25, y1 - 0.25);
+      bar(x1 - 0.25, x1, y0 + 0.25, y1 - 0.25);
     },
     // 下向きの面だけの天井（上から見ると中が見える）
     ceiling(x0, x1, f0, f1, color, target = solid) {

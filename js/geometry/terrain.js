@@ -1,6 +1,7 @@
 // 巨大ソリッドCube Greedy Meshing エンジン（支柱なし・マグマ底まで1枚板）
 import { state, arena } from '../state.js';
 import { getChunkStyle } from './styles.js';
+import { getChunkBottomY } from './bounds.js';
 import { getLayerHeight, getGridMetrics, isInGrid } from '../core/grid.js';
 import { MeshBuilder } from './MeshBuilder.js';
 
@@ -106,24 +107,29 @@ function addFloorTops(mesh, chunkId) {
   }
 }
 
-// --- B. 足場側面（マグマ底まで一体の巨大ソリッド壁）の水平マージ ---
+// --- B. 足場側面（溶岩面まで一体の壁）の水平マージ。壁の外を向く面は作らない ---
 function addPlatformSides(mesh, chunkId) {
   const { W, D, S, halfW, halfD } = getGridMetrics();
   const layerH = getLayerHeight();
-  const magmaY = -state.magmaDepth;
+  const bottomY = getChunkBottomY(arena.chunks[chunkId]);
 
   const underCol = new THREE.Color(getChunkStyle(chunkId).side);
 
   function getPlatformTopY(x, z) {
-    if (!isInGrid(x, z)) return magmaY;
     const c = arena.grid[z][x];
-    if (!c || c.type === 'pit' || c.thin) return magmaY;
+    if (c.type === 'pit' || c.thin) return bottomY;
     return c.height * layerH;
   }
 
   // この区画のセルの天面高さ（区画外は面を作らない）
   function getOwnTopY(x, z) {
-    return arena.grid[z][x].chunkId === chunkId ? getPlatformTopY(x, z) : magmaY;
+    return arena.grid[z][x].chunkId === chunkId ? getPlatformTopY(x, z) : -Infinity;
+  }
+
+  // 隣の天面高さ。区画の外側（壁の向こう）は見えないので Infinity にして面を作らない
+  function getNeighborTopY(x, z) {
+    if (!isInGrid(x, z) || arena.grid[z][x].chunkId === null) return Infinity;
+    return getPlatformTopY(x, z);
   }
 
   // Z方向法線の壁（+Z: dz=+1, -Z: dz=-1）をX軸に沿って1枚板マージ
@@ -132,14 +138,14 @@ function addPlatformSides(mesh, chunkId) {
       let x = 0;
       while (x < W) {
         const yTop = getOwnTopY(x, z);
-        const nbTop = getPlatformTopY(x, z + dz);
+        const nbTop = getNeighborTopY(x, z + dz);
         if (yTop <= nbTop) { x++; continue; }
 
-        const yBot = state.noCarveMerge ? magmaY : nbTop;
+        const yBot = state.noCarveMerge ? bottomY : nbTop;
         let run = 1;
         while (x + run < W) {
           const nTop = getOwnTopY(x + run, z);
-          const nNb = getPlatformTopY(x + run, z + dz);
+          const nNb = getNeighborTopY(x + run, z + dz);
           if (nTop !== yTop || nTop <= nNb) break;
           if (!state.noCarveMerge && nNb !== nbTop) break;
           run++;
@@ -164,14 +170,14 @@ function addPlatformSides(mesh, chunkId) {
       let z = 0;
       while (z < D) {
         const yTop = getOwnTopY(x, z);
-        const nbTop = getPlatformTopY(x + dx, z);
+        const nbTop = getNeighborTopY(x + dx, z);
         if (yTop <= nbTop) { z++; continue; }
 
-        const yBot = state.noCarveMerge ? magmaY : nbTop;
+        const yBot = state.noCarveMerge ? bottomY : nbTop;
         let run = 1;
         while (z + run < D) {
           const nTop = getOwnTopY(x, z + run);
-          const nNb = getPlatformTopY(x + dx, z + run);
+          const nNb = getNeighborTopY(x + dx, z + run);
           if (nTop !== yTop || nTop <= nNb) break;
           if (!state.noCarveMerge && nNb !== nbTop) break;
           run++;

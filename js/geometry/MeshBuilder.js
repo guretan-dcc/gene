@@ -21,19 +21,24 @@ export class MeshBuilder {
     this.indices.push(base, base + 1, base + 2);
   }
 
-  // 底面なし（天面＋4側面＝10三角形）のボックスを追加
-  addNoBottomBox(x0, x1, y0, y1, z0, z1, color) {
-    this.addQuad([x0, y1, z0], [x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [0, 1, 0], color);
-    this.addQuad([x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [1, 0, 0], color);
-    this.addQuad([x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], [-1, 0, 0], color);
-    this.addQuad([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], [0, 0, 1], color);
-    this.addQuad([x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], [0, 0, -1], color);
+  // ボックスを追加する。skip に指定した向き（'+x' '-y' など）の面は作らない
+  addBox(x0, x1, y0, y1, z0, z1, color, skip = []) {
+    const faces = {
+      '+y': [[x0, y1, z0], [x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [0, 1, 0]],
+      '+x': [[x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [1, 0, 0]],
+      '-x': [[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], [-1, 0, 0]],
+      '+z': [[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], [0, 0, 1]],
+      '-z': [[x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], [0, 0, -1]],
+      '-y': [[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], [0, -1, 0]]
+    };
+    for (const [key, [p0, p1, p2, p3, normal]] of Object.entries(faces)) {
+      if (!skip.includes(key)) this.addQuad(p0, p1, p2, p3, normal, color);
+    }
   }
 
-  // 6面すべてを持つボックス
-  addBox(x0, x1, y0, y1, z0, z1, color) {
-    this.addNoBottomBox(x0, x1, y0, y1, z0, z1, color);
-    this.addQuad([x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], [0, -1, 0], color);
+  // 底面なし（天面＋4側面＝10三角形）のボックスを追加
+  addNoBottomBox(x0, x1, y0, y1, z0, z1, color) {
+    this.addBox(x0, x1, y0, y1, z0, z1, color, ['-y']);
   }
 
   // 頂点を追加し、先頭の頂点番号を返す

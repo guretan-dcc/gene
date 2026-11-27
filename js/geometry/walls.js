@@ -1,8 +1,8 @@
 // 部屋と通路を囲む内向きの壁（外側からは裏面カリングで中が見える）
-import { state, arena } from '../state.js';
+import { arena } from '../state.js';
 import { DOOR_HEIGHT } from '../config/constants.js';
 import { getChunkStyle } from './styles.js';
-import { getChunkTopY } from './bounds.js';
+import { getChunkTopY, getChunkBottomY } from './bounds.js';
 import { getLayerHeight, getGridMetrics, isInGrid } from '../core/grid.js';
 import { MeshBuilder } from './MeshBuilder.js';
 
@@ -25,8 +25,8 @@ export function buildWallGeometry(chunkId) {
 function getWallBottom(chunk, x, z, { dx, dz }) {
   const cell = arena.grid[z][x];
   if (cell.chunkId !== chunk.id) return null;
-  // 溶岩の上は水面（マグマ面）まで壁を下ろす
-  const floorY = (cell.type === 'pit' || cell.thin) ? -state.magmaDepth : cell.height * getLayerHeight();
+  // 溶岩の上は溶岩面まで壁を下ろす
+  const floorY = (cell.type === 'pit' || cell.thin) ? getChunkBottomY(chunk) : cell.height * getLayerHeight();
   const next = isInGrid(x + dx, z + dz) ? arena.grid[z + dz][x + dx] : null;
 
   if (!next || next.chunkId === null) return floorY;      // 外側: 床から天井まで
