@@ -1,10 +1,13 @@
-// 各部屋の出口のシャッター扉（プレビュー専用：PLYには含めずJSONに座標を出力）
+// 各部屋の出口の両開き扉（プレビュー専用：PLYには含めずJSONに座標を出力）
 import { state, arena } from '../state.js';
 import { DOOR_HEIGHT } from '../config/constants.js';
 import { getLayerHeight, cellCenterX, cellCenterZ } from '../core/grid.js';
 import { view } from './context.js';
 
-const SLAT_HEIGHT = 0.25;
+const PANEL_COLOR = 0x7d828c;
+const SEAM_COLOR = 0x2b2d34;
+const THICKNESS = 0.2;
+const SEAM_WIDTH = 0.08;
 
 export function addDoors() {
   if (!state.showDoors) return;
@@ -12,20 +15,20 @@ export function addDoors() {
   const layerH = getLayerHeight();
 
   for (const door of arena.doors) {
-    const group = view.chunkGroups[door.from];
-    const count = Math.round(DOOR_HEIGHT / SLAT_HEIGHT);
-    for (let i = 0; i < count; i++) {
-      // 厚みと色を交互に変えてシャッターの段を表現する
-      const slat = new THREE.Mesh(
-        new THREE.BoxGeometry(door.width * S, SLAT_HEIGHT, i % 2 ? 0.2 : 0.32),
-        new THREE.MeshLambertMaterial({ color: i % 2 ? 0x6b7078 : 0x8d929b })
+    const x = cellCenterX(door.x);
+    const y = door.height * layerH + DOOR_HEIGHT / 2;
+    const z = cellCenterZ(door.z) - S / 2 + THICKNESS / 2;
+
+    const addPanel = (width, thickness, color) => {
+      const panel = new THREE.Mesh(
+        new THREE.BoxGeometry(width, DOOR_HEIGHT, thickness),
+        new THREE.MeshLambertMaterial({ color })
       );
-      slat.position.set(
-        cellCenterX(door.x),
-        door.height * layerH + (i + 0.5) * SLAT_HEIGHT,
-        cellCenterZ(door.z) - S / 2 + 0.1
-      );
-      group.add(slat);
-    }
+      panel.position.set(x, y, z);
+      view.chunkGroups[door.from].add(panel);
+    };
+    // 1枚の扉板に、中央の合わせ目を少し厚くして重ねる
+    addPanel(door.width * S, THICKNESS, PANEL_COLOR);
+    addPanel(SEAM_WIDTH, THICKNESS + 0.04, SEAM_COLOR);
   }
 }
