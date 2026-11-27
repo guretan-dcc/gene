@@ -17,25 +17,10 @@ export const shaftRoom = {
   },
 
   decorate(kit) {
-    const { style, halfW, length, top, lava, S } = kit;
+    const { style, halfW, length, lava, S } = kit;
 
-    // 壁の枠パネル（左右と奥、上下2段以上）
-    const columns = Math.max(3, Math.round(length / 6));
-    const width = length / columns;
-    for (let y = lava + 1; y + 3 < top; y += 5.5) {
-      const y1 = Math.min(y + 4.6, top - 0.8);
-      for (let i = 0; i < columns; i++) {
-        for (const side of [-1, 1]) {
-          kit.sideFrame(side, i * width + 0.7, (i + 1) * width - 0.7, y, y1, style.accent);
-        }
-      }
-    }
-    kit.pilasters(width, 0.35, style.trim);
-    for (let y = kit.exitY + 4.8; y + 2 < top; y += 4) {
-      for (const x of [-0.65, 0, 0.65]) {
-        kit.farFrame(x * halfW - 1.8, x * halfW + 1.8, y, Math.min(y + 3, top - 0.6), style.accent);
-      }
-    }
+    // 壁の付け柱
+    kit.pilasters(6, 0.35, style.trim);
 
     // 出口側の足場の前面
     const front = length - LEDGE * S;
@@ -53,12 +38,6 @@ export const shaftRoom = {
     kit.ceiling(-sx, sx, 0, f0, style.trim);
     kit.ceiling(-sx, sx, f1, length, style.trim);
     kit.skylight(-sx, sx, f0, f1);
-    for (let i = 0; i <= 3; i++) {
-      const x = -sx + (2 * sx * i) / 3;
-      kit.box(x - 0.12, x + 0.12, top - 0.35, top, f0, f1, style.side);
-      const f = f0 + ((f1 - f0) * i) / 3;
-      kit.box(-sx, sx, top - 0.35, top, f - 0.12, f + 0.12, style.side);
-    }
 
     // 隅に積んだ木箱
     const crate = (x, f, y) => {

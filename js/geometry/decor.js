@@ -70,22 +70,6 @@ function createKit(room, solid, glow) {
         kit.mirrorBox(side, x - 0.4, x + 0.4, kit.lava, kit.top, kit.length - depth, kit.length, color);
       }
     },
-    // 左右の壁の枠
-    sideFrame(side, f0, f1, y0, y1, color) {
-      const bar = (a, b, c, d) => kit.mirrorBox(side, kit.halfW - 0.18, kit.halfW, c, d, a, b, color);
-      bar(f0, f1, y0, y0 + 0.25);
-      bar(f0, f1, y1 - 0.25, y1);
-      bar(f0, f0 + 0.25, y0 + 0.25, y1 - 0.25);
-      bar(f1 - 0.25, f1, y0 + 0.25, y1 - 0.25);
-    },
-    // 奥の壁の枠
-    farFrame(x0, x1, y0, y1, color) {
-      const bar = (a, b, c, d) => kit.box(a, b, c, d, kit.length - 0.18, kit.length, color);
-      bar(x0, x1, y0, y0 + 0.25);
-      bar(x0, x1, y1 - 0.25, y1);
-      bar(x0, x0 + 0.25, y0 + 0.25, y1 - 0.25);
-      bar(x1 - 0.25, x1, y0 + 0.25, y1 - 0.25);
-    },
     // 下向きの面だけの天井（上から見ると中が見える）
     ceiling(x0, x1, f0, f1, color, target = solid) {
       const y = originY + kit.top;
