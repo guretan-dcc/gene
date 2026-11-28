@@ -1,5 +1,7 @@
 # gene — 群島・ステージ連結型 ローポリ浮島＆橋ジェネレーター
 
+画面右上の切り替えから[ステージジェネレーター（stageGenerator）](https://guretan-dcc.github.io/stageGenerator/)に移動できます。
+
 Three.js 製のローポリ浮島・橋ジェネレーター（ブラウザで `index.html` を開くだけで動作。Tailwind / Three.js は CDN 読み込み）。
 Unity Prefab / JSON / PLY の書き出しに対応。
 
