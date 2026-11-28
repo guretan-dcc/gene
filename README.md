@@ -1,5 +1,7 @@
 # stageGenerator
 
+画面右上の切り替えから[浮島ジェネレーター（gene）](https://guretan-dcc.github.io/gene/)に移動できます。
+
 部屋を通路と扉で連結する、ローポリ（3D Greedy Meshing）ボクセルステージ ジェネレーター。
 ブラウザでプレビューしながら地形を生成し、PLY（地形メッシュ）と JSON（配置データ）を書き出せます。
 
