@@ -1,20 +1,11 @@
 # stageGenerator
 
-画面右上の切り替えから[浮島ジェネレーター（gene）](https://guretan-dcc.github.io/gene/)に移動できます。
-
 部屋を通路と扉で連結する、ローポリ（3D Greedy Meshing）ボクセルステージ ジェネレーター。
 ブラウザでプレビューしながら地形を生成し、PLY（地形メッシュ）と JSON（配置データ）を書き出せます。
 
 ## 起動
 
-ES Modules を使っているため、`index.html` を直接ダブルクリックしても動きません。ローカルサーバー経由で開いてください。
-
-```bash
-python -m http.server 8000
-# http://localhost:8000 を開く
-```
-
-VS Code の Live Server や GitHub Pages でも動きます。Three.js r128 と Tailwind CSS は CDN から読み込むため、ネット接続が必要です。
+[一番上のREADME](../README.md)の方法でサーバーを起動して `/stage/` を開きます。Three.js r128 と Tailwind CSS は CDN から読み込むため、ネット接続が必要です。
 
 ## 構成
 
@@ -33,10 +24,11 @@ VS Code の Live Server や GitHub Pages でも動きます。Three.js r128 と 
 | `js/ui/` | サイドバー・統計・通知 |
 | `js/export/` | unitypackage / PLY / JSON 書き出し |
 | `unity/` | unitypackage に含めるエディタースクリプト |
+| `../shared/` | unitypackage 作成・固定GUID(全ジェネレーター共通) |
 
 ## Unityへの書き出し
 
-「Unity書き出し」で `<ステージ名>.unitypackage` を出力し、Unityの Assets > Import Package > Custom Package で取り込みます。地形ジェネレーター(gene)と同じ構成です。
+「Unity書き出し」で `<ステージ名>.unitypackage` を出力し、Unityの Assets > Import Package > Custom Package で取り込みます。浮島ジェネレーターと同じ構成です。
 
 - `Assets/MyAssets/GameObjects/Stages/<ステージ名>/` に Prefab と、メッシュごとの `.asset` が入ります。
 - マテリアルはプロジェクトの共有マテリアル `LowPolyVertexColor.mat` を GUID で参照します（パッケージには含みません）。溶岩も同じマテリアルです。

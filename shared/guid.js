@@ -1,4 +1,4 @@
-// ステージ名などから決まる固定GUID(32桁hex)。同じ文字列なら必ず同じ値(cyrb128)
+// 全ジェネレーター共通: ステージ名などから決まる固定GUID(32桁hex)。同じ文字列なら必ず同じ値(cyrb128)
 export function stableGuid(seed) {
   let h1 = 1779033703, h2 = 3144134277, h3 = 1013904242, h4 = 2773480762;
   for (let i = 0; i < seed.length; i++) {

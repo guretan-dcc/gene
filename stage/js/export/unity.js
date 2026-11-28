@@ -11,8 +11,8 @@ import { downloadFile } from './download.js';
 import { getChunkName } from './filename.js';
 import { isChecked, collectChunkGeometries, collectColliderGeometries, collectMagma } from './chunkGeometry.js';
 import { createMeshAsset, createPrefab, MESH_FILE_ID } from './unityYaml.js';
-import { createUnityPackage } from './unitypackage.js';
-import { stableGuid } from './guid.js';
+import { stableGuid } from '../../../shared/guid.js';
+import { makeUnityPackage } from '../../../shared/unitypackage.js';
 
 // プロジェクトの共有マテリアル LowPolyVertexColor.mat
 const MATERIAL_GUID = '4b6c0ee4556d04f4ba685ab776a31dad';
@@ -89,7 +89,8 @@ function buildAssets(stage) {
 export async function exportUnityPackage() {
   try {
     const stage = getStageName();
-    const blob = await createUnityPackage([...buildAssets(stage), await createEditorScriptAsset()]);
+    const bytes = await makeUnityPackage([...buildAssets(stage), await createEditorScriptAsset()]);
+    const blob = new Blob([bytes], { type: 'application/gzip' });
     downloadFile(`${stage}.unitypackage`, blob);
     showToast(`${stage}.unitypackage を書き出しました`);
   } catch (err) {

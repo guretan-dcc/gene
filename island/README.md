@@ -1,8 +1,6 @@
 # gene — 群島・ステージ連結型 ローポリ浮島＆橋ジェネレーター
 
-画面右上の切り替えから[ステージジェネレーター（stageGenerator）](https://guretan-dcc.github.io/stageGenerator/)に移動できます。
-
-Three.js 製のローポリ浮島・橋ジェネレーター（ブラウザで `index.html` を開くだけで動作。Tailwind / Three.js は CDN 読み込み）。
+Three.js 製のローポリ浮島・橋ジェネレーター（Tailwind / Three.js は CDN 読み込み）。
 Unity Prefab / JSON / PLY の書き出しに対応。
 
 ## 構成
@@ -27,6 +25,7 @@ js/
   ui/river-list.js                手動の川(経路点)の一覧UI
   generators/bridge-generator.js  橋メッシュ生成
   export/unity-yaml.js        Unity YAML シリアライズ
+  ../shared/                    unitypackage作成・固定GUID(全ジェネレーター共通)
   export/exporters.js         Prefab / JSON / PLY 出力
   export/importers.js         設定JSONの読み込み
   history.js                  Undo / Redo（Ctrl+Z / Ctrl+Y）
@@ -41,11 +40,7 @@ js/
 
 ## 起動方法
 
-ES Module は `file://` で直接開くと動かないため、ローカルサーバー経由で開いてください（GitHub Pages ならそのまま動きます）。
-
-```
-python3 -m http.server 8000   # → http://localhost:8000/
-```
+起動方法は[一番上のREADME](../README.md)を参照してください(`/island/` を開きます)。
 
 ## 操作
 

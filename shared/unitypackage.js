@@ -1,4 +1,4 @@
-// .unitypackage (= tar.gz) を依存ライブラリなしで作る。
+// 全ジェネレーター共通: .unitypackage (= tar.gz) を依存ライブラリなしで作る。
 // 構造は Unity が書き出すものと同じ:  <guid>/asset , <guid>/asset.meta , <guid>/pathname
 // Unity の Assets > Import Package > Custom Package で、または .unitypackage をダブルクリックして取り込める。
 const enc = new TextEncoder();
@@ -89,12 +89,12 @@ async function gzip(bytes) {
     return gzipStored(bytes);
 }
 
-// assets: [{ guid, pathname, text, meta }] → Uint8Array (.unitypackage)
+// assets: [{ guid, pathname, meta, text または bytes }] → Uint8Array (.unitypackage)
 export async function makeUnityPackage(assets) {
     const entries = [];
     for (const a of assets) {
         entries.push({ name: `${a.guid}/`, dir: true });
-        entries.push({ name: `${a.guid}/asset`, text: a.text });
+        entries.push({ name: `${a.guid}/asset`, text: a.text, bytes: a.bytes });
         entries.push({ name: `${a.guid}/asset.meta`, text: a.meta });
         entries.push({ name: `${a.guid}/pathname`, text: a.pathname });
     }
