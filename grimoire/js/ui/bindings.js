@@ -4,7 +4,7 @@ import { getBookDims } from '../book/dimensions.js';
 import { buildBook } from '../book/build.js';
 import { refreshPageTextures, applyPageStackShapeKeys, applyTurningShapeKeys } from '../animation/pose.js';
 import { prepareTurningTextures, endManualScrub, startPageFlip } from '../animation/flip.js';
-import { updateNavUI, toggleBookOpen, randomizeBook } from './panels.js';
+import { updateNavUI, toggleBookOpen, randomizeBook, syncPageEditorFromState } from './panels.js';
 import { exportCanvasPNG, exportSpreadTexture } from '../export/image.js';
 import { exportOBJ, exportGLB } from '../export/models.js';
 import { copyJSON, applyJSON } from '../export/settings-json.js';
@@ -116,6 +116,7 @@ export function bindUI() {
       page[field] = value;
     }
     refreshPageTextures();
+    if (field === 'type') syncPageEditorFromState();
   };
 
   document.getElementById('ctrl-left-type').addEventListener('change', e => updatePageField('left', 'type', e.target.value));

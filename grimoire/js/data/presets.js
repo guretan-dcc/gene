@@ -1,27 +1,4 @@
-// 初期の見開きデータと配色プリセット
-
-export const DEFAULT_SPREADS = [
-  {
-    left: { type: 'menu', title: 'MAIN MENU', items: ['CONTINUE', 'NEW QUEST', 'SPELLBOOK', 'LOAD DATA', 'OPTIONS'] },
-    right: { type: 'sigil', title: 'ARCANE CREST', items: ['FIRE', 'WATER', 'WIND', 'EARTH'] }
-  },
-  {
-    left: { type: 'stats', title: 'HERO STATUS', items: ['LV 24 MAGE', 'HP 420 / 420', 'MP 310 / 310', 'ATK 68  INT 145'] },
-    right: { type: 'spells', title: 'MAGIC LIST', items: ['FIREBALL', 'ICE LANCE', 'HEAL LIGHT', 'TELEPORT'] }
-  },
-  {
-    left: { type: 'inventory', title: 'ITEM BAG', items: ['POTION', 'ELIXIR', 'KEY', 'SCROLL', 'COMPASS', 'RING'] },
-    right: { type: 'map', title: 'WORLD MAP', items: ['ROYAL CITY', 'CRYSTAL LAKE', 'DRAGON PEAK'] }
-  },
-  {
-    left: { type: 'menu', title: 'QUEST LOG', items: ['THE ANCIENT SEAL', 'HERB GATHERING', 'LOST TOWER', 'GUILD REPORT'] },
-    right: { type: 'spells', title: 'RUNE NOTES', items: ['IGNIS', 'GLACIES', 'VENTUS', 'TERRA'] }
-  },
-  {
-    left: { type: 'settings', title: 'SYSTEM', items: ['BGM VOLUME', 'SFX VOLUME', 'CAMERA SPEED', 'SUBTITLES'] },
-    right: { type: 'sigil', title: 'FINIS', items: ['CHAPTER I', 'CHAPTER II', 'CHAPTER III'] }
-  }
-];
+// 配色プリセット
 
 export const PRESETS = [
   {
@@ -99,6 +76,7 @@ export const PRESETS = [
 ];
 
 export const BG_PRESETS = [
+  { name: 'ナイト', hex: '#12141a', dark: true },
   { name: 'ウォームグレー', hex: '#e4e2dd', dark: false },
   { name: 'ライトグレー', hex: '#dfe3e8', dark: false },
   { name: 'セージ', hex: '#d7dfd9', dark: false },

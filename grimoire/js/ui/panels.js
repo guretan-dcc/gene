@@ -4,6 +4,7 @@ import { state, flipAnim } from '../state.js';
 import { buildBook } from '../book/build.js';
 import { refreshPageTextures, updateBookPose } from '../animation/pose.js';
 import { endManualScrub, startPageFlipTo } from '../animation/flip.js';
+import { MAGIC_PAGE_TYPES } from '../textures/magic.js';
 import { rig } from '../rig.js';
 
 export function applyBackground(hex) {
@@ -15,8 +16,8 @@ export function applyBackground(hex) {
   const titleEl = document.getElementById('viewport-title');
   if (titleEl) {
     titleEl.className = bgInfo && bgInfo.dark
-      ? 'text-xs font-semibold tracking-wide text-white/80'
-      : 'text-xs font-semibold tracking-wide text-neutral-700/80';
+      ? 'text-xs font-semibold tracking-wide text-[#ffffffcc]'
+      : 'text-xs font-semibold tracking-wide text-[#404040cc]';
   }
   renderBgSwatches();
 }
@@ -115,6 +116,14 @@ export function syncControlsFromState() {
 export function syncPageEditorFromState() {
   const spread = state.spreads[state.currentSpread];
   if (!spread) return;
+
+  for (const side of ['left', 'right']) {
+    // 呪文データから描くページは、項目の入力欄を使わない(操作方法は項目を使う)
+    const type = spread[side].type;
+    const input = document.getElementById(`ctrl-${side}-items`);
+    input.disabled = MAGIC_PAGE_TYPES.includes(type) && type !== 'notes';
+    input.classList.toggle('opacity-40', input.disabled);
+  }
 
   document.getElementById('ctrl-left-type').value = spread.left.type;
   document.getElementById('ctrl-left-title').value = spread.left.title;

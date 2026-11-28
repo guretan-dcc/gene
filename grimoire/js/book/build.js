@@ -7,6 +7,7 @@ import { disposeObject3D, addCartoonCorners, addSimpleMetalEmblem } from './deta
 import { shadeHex } from '../textures/canvas-utils.js';
 import { createPageEdgeTexture, createFrontCoverTexture, createBackCoverTexture, createSpineCoverTexture } from '../textures/covers.js';
 import { refreshPageTextures, updateBookPose } from '../animation/pose.js';
+import { getTabSpreads, TAB_SIZE, TAB_COLORS } from './edge.js';
 import { rig } from '../rig.js';
 
 export function buildBook() {
@@ -237,24 +238,20 @@ export function buildBook() {
   rig.rightCoverPivot.add(rig.rightPageMesh);
 
   // -----------------------------------------------------------------------
-  // D. INDEX TABS (Heights adapt automatically to right-stack thickness)
+  // D. INDEX TABS (見出しタブ。位置は pose.js で束の端に合わせる)
   // -----------------------------------------------------------------------
   if (state.tabs) {
-    const tabColors = ['#c9974c', '#b85a52', '#52879e', '#5a8f6f'];
-    const tabZOffsets = [-0.34, -0.13, 0.13, 0.34];
-    tabColors.forEach((col, i) => {
-      const tab = new THREE.Mesh(
-        new THREE.BoxGeometry(0.20, 0.020, 0.24),
-        makeToonMat(col)
-      );
-      tab.name = `IndexTab_${i + 1}`;
-      tab.position.set(
-        dims.pageW + 0.045,
-        0.05,
-        dims.pageH * tabZOffsets[i]
-      );
-      rig.rightCoverPivot.add(tab);
-      rig.tabMeshes.push(tab);
+    getTabSpreads(state.spreads).forEach((spreadIndex, i) => {
+      const geometry = new THREE.BoxGeometry(TAB_SIZE.w, TAB_SIZE.h, TAB_SIZE.d);
+      const material = makeToonMat(TAB_COLORS[i % TAB_COLORS.length]);
+      // 左右どちらの束にも付けられるように2つ作り、片方だけ表示する
+      const [left, right] = [rig.leftCoverPivot, rig.rightCoverPivot].map((pivot, side) => {
+        const tab = new THREE.Mesh(geometry, material);
+        tab.name = `IndexTab_${i + 1}_${side ? 'Right' : 'Left'}`;
+        pivot.add(tab);
+        return tab;
+      });
+      rig.tabMeshes.push({ left, right });
     });
   }
 

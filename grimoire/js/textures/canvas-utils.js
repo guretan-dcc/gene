@@ -12,6 +12,11 @@ export function shadeHex(hex, amount) {
   return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
 }
 
+export function isDarkColor(hex) {
+  const n = parseInt(String(hex).replace('#', ''), 16);
+  return (n >> 16 & 255) * 0.299 + (n >> 8 & 255) * 0.587 + (n & 255) * 0.114 < 110;
+}
+
 export function drawRoundRect(ctx, x, y, w, h, r) {
   const rr = Math.min(r, w * 0.5, h * 0.5);
   ctx.beginPath();

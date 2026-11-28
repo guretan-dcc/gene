@@ -4,6 +4,7 @@ import { bindViewportControls } from './scene/controls.js';
 import { showToast } from './ui/toast.js';
 import { renderPresets, renderBgSwatches, renderSpreadButtons, syncControlsFromState, syncPageEditorFromState, updateNavUI } from './ui/panels.js';
 import { bindUI } from './ui/bindings.js';
+import { buildBook } from './book/build.js';
 
 window.onload = function () {
   try {
@@ -17,6 +18,8 @@ window.onload = function () {
     bindViewportControls();
     bindUI();
     requestAnimationFrame(animate);
+    // Webフォントが読み込まれたら、ページの文字を描き直す
+    document.fonts?.ready.then(() => buildBook());
   } catch (err) {
     console.error('Initialization error:', err);
     showToast('初期化中にエラーが発生しました');

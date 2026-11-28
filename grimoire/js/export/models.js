@@ -112,11 +112,18 @@ export function exportGLB() {
     applyTurningShapeKeys(0);
   }
 
+  // 表示していない側の見出しタブは含めない
+  const hiddenTabs = rig.tabMeshes.flatMap(pair => [pair.left, pair.right])
+    .filter(tab => !tab.visible)
+    .map(tab => ({ tab, parent: tab.parent }));
+  hiddenTabs.forEach(({ tab, parent }) => parent.remove(tab));
+
   const exporter = new THREE.GLTFExporter();
   exporter.parse(
     rig.bookRoot,
     result => {
       rig.turningPageGroup.visible = prevTurnVisible;
+      hiddenTabs.forEach(({ tab, parent }) => parent.add(tab));
       if (result instanceof ArrayBuffer) {
         const blob = new Blob([result], { type: 'model/gltf-binary' });
         const url = URL.createObjectURL(blob);

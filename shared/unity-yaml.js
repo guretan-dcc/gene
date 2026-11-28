@@ -88,7 +88,7 @@ export const COMMON = `  m_ObjectHideFlags: 0
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}`;
 
-export function gameObject(id, name, components, staticFlags = STATIC_FLAGS) {
+export function gameObject(id, name, components, staticFlags = STATIC_FLAGS, active = true) {
   return `--- !u!1 &${id}
 GameObject:
 ${COMMON}
@@ -101,11 +101,11 @@ ${components.map(c => `  - component: {fileID: ${c}}`).join('\n')}
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: ${staticFlags}
-  m_IsActive: 1`;
+  m_IsActive: ${active ? 1 : 0}`;
 }
 
 // position: { x, y, z } / yaw180: true なら -Z 方向を向ける
-export function transform(id, owner, father, children, position = { x: 0, y: 0, z: 0 }, yaw180 = false) {
+export function transform(id, owner, father, children, position = { x: 0, y: 0, z: 0 }, yaw180 = false, scale = 1) {
   const list = children.length ? '\n' + children.map(c => `  - {fileID: ${c}}`).join('\n') : ' []';
   return `--- !u!4 &${id}
 Transform:
@@ -114,7 +114,7 @@ ${COMMON}
   serializedVersion: 2
   m_LocalRotation: ${yaw180 ? '{x: 0, y: 1, z: 0, w: 0}' : '{x: 0, y: 0, z: 0, w: 1}'}
   m_LocalPosition: {x: ${position.x}, y: ${position.y}, z: ${position.z}}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: ${scale}, y: ${scale}, z: ${scale}}
   m_ConstrainProportionsScale: 0
   m_Children:${list}
   m_Father: {fileID: ${father}}

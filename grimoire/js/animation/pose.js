@@ -3,6 +3,7 @@ import { TURN_STAGE_COUNT } from '../config.js';
 import { state, flipAnim } from '../state.js';
 import { getBookDims, getStackThicknesses, getStackSlope } from '../book/dimensions.js';
 import { createPageTexture } from '../textures/pages.js';
+import { getTabSpreads, getTabPlacement } from '../book/edge.js';
 import { rig } from '../rig.js';
 
 export function refreshPageTextures() {
@@ -66,16 +67,15 @@ export function applyPageStackShapeKeys(dims, open) {
     rig.rightEdgeTex.repeat.set(1, Math.max(0.35, rightT * 4.2));
   }
 
-  // Keep index tabs aligned with the right stack outer edge & height
-  if (rig.tabMeshes.length > 0) {
-    const usableH = Math.max(0.03, rightT - 0.024);
-    const openEndX = dims.pageW * (1 - 0.025 * open);
-    rig.tabMeshes.forEach((tab, idx) => {
-      const frac = 0.84 - (idx / Math.max(1, rig.tabMeshes.length - 1)) * 0.64;
-      tab.position.x = openEndX + 0.055;
-      tab.position.y = Math.max(0.014, 0.012 + usableH * frac);
-    });
-  }
+  // 見出しタブを束の端に合わせる
+  const tabSpreads = getTabSpreads(state.spreads);
+  rig.tabMeshes.forEach((pair, i) => {
+    if (i >= tabSpreads.length) return;
+    const at = getTabPlacement(dims, open, i, tabSpreads, state.spreadVisual, state.spreads.length);
+    pair.left.visible = at.left;
+    pair.right.visible = !at.left;
+    (at.left ? pair.left : pair.right).position.set(at.x, at.y, at.z);
+  });
 
   // Keep turning page hinge anchored at spine seamY
   if (rig.turningPageGroup) {

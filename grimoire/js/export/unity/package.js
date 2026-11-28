@@ -1,80 +1,74 @@
-// .unitypackage の書き出し
+// .unitypackage の書き出し:
+//   Assets/MyAssets/GameObjects/Grimoire/<名前>/  Prefab・テクスチャ1枚・マテリアル1つ・Meshes/
+//   Assets/MyAssets/Scripts/U#/Grimoire/          ページを切り替える UdonSharp
+// GUID は名前から決まるので、同じ名前で出し直して取り込むと参照を保ったまま中身が更新される。
 import { state } from '../../state.js';
-import { createPageCanvas } from '../../textures/pages.js';
 import { showToast } from '../../ui/toast.js';
 import { downloadDataUrl } from '../download.js';
-import { generateUnityGuid, createUnityMeta } from './meta.js';
-import { serializeBookForUnity } from './serialize.js';
-import { rig } from '../../rig.js';
+import { stableGuid } from '../../../../shared/guid.js';
 import { makeUnityPackage } from '../../../../shared/unitypackage.js';
+import { MESH_FILE_ID } from '../../../../shared/unity-yaml.js';
+import { createAtlas } from './atlas.js';
+import { buildBookMeshes } from './book-meshes.js';
+import { createUvMeshAsset } from './mesh.js';
+import {
+  createPrefab, createMaterial, createProgramAsset, nativeMeta, prefabMeta, scriptMeta, textureMeta
+} from './assets.js';
 
-const encoder = new TextEncoder();
-const utf8Bytes = str => encoder.encode(str);
+const BOOK_DIR = 'Assets/MyAssets/GameObjects/Grimoire';
+const SCRIPT_DIR = 'Assets/MyAssets/Scripts/U#/Grimoire';
 
-// unity/ に置いたスクリプトと説明書を読み込んで同梱する
-async function loadTemplate(file) {
-  const response = await fetch(new URL(`../../../unity/${file}`, import.meta.url));
-  if (!response.ok) throw new Error(`${file} を読み込めませんでした (${response.status})`);
-  return response.text();
-}
+export const safeName = title => String(title || '').replace(/[\\/:*?"<>|]/g, '_').trim() || 'Grimoire';
 
 export function canvasToPngBytes(canvas) {
-  const dataUrl = canvas.toDataURL('image/png');
-  const b64 = dataUrl.split(',')[1];
-  const bin = atob(b64);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
+  const bin = atob(canvas.toDataURL('image/png').split(',')[1]);
+  return Uint8Array.from(bin, c => c.charCodeAt(0));
+}
+
+export async function buildAssets() {
+  const name = safeName(state.bookTitle);
+  const dir = `${BOOK_DIR}/${name}`;
+  const assets = [];
+  const add = (key, pathname, createMeta, content) => {
+    const guid = stableGuid(`grimoire|${key}`);
+    assets.push({ guid, pathname, meta: createMeta(guid), ...content });
+    return guid;
+  };
+
+  // 解説ページの文字がフォントの読み込み前に描かれないようにする
+  await document.fonts?.ready;
+  const atlas = createAtlas();
+  const { parts, collider } = buildBookMeshes(atlas);
+
+  const textureGuid = add(`${name}|texture`, `${dir}/${name}.png`, textureMeta,
+    { bytes: canvasToPngBytes(atlas.canvas) });
+  const materialGuid = add(`${name}|material`, `${dir}/${name}.mat`, g => nativeMeta(g, 2100000),
+    { text: createMaterial(name, textureGuid) });
+  for (const part of parts) {
+    const meshName = `${name}_${part.name}`;
+    part.meshGuid = add(`${name}|mesh|${part.name}`, `${dir}/Meshes/${meshName}.asset`,
+      g => nativeMeta(g, MESH_FILE_ID), { text: createUvMeshAsset(meshName, part.mesh) });
+  }
+  add(`${name}|prefab`, `${dir}/${name}.prefab`, prefabMeta,
+    { text: createPrefab(name, parts, materialGuid, collider) });
+
+  // スクリプトはすべての本で共通
+  const response = await fetch(new URL('../../../unity/GrimoireBook.cs', import.meta.url));
+  if (!response.ok) throw new Error(`GrimoireBook.cs を読み込めませんでした (${response.status})`);
+  const scriptGuid = add('script', `${SCRIPT_DIR}/GrimoireBook.cs`, scriptMeta, { text: await response.text() });
+  add('program', `${SCRIPT_DIR}/GrimoireBook.asset`, g => nativeMeta(g, 11400000),
+    { text: createProgramAsset('GrimoireBook', scriptGuid) });
+
+  return { name, assets };
 }
 
 export async function exportUnityPackage() {
   try {
     showToast('UnityPackageを生成中...');
-    const pkgAssets = [];
-    const addAsset = (unityPath, bytes, metaKind, metaOpts) => {
-      const guid = generateUnityGuid();
-      pkgAssets.push({
-        guid,
-        pathname: unityPath,
-        bytes: bytes instanceof Uint8Array ? bytes : utf8Bytes(String(bytes)),
-        meta: createUnityMeta(metaKind, guid, metaOpts)
-      });
-    };
-
-    // 1. Serialize current 3D model, hierarchy & BlendShapes
-    const unityBookData = serializeBookForUnity();
-    addAsset('Assets/GrimoireForge/Data/grimoire_data.json', JSON.stringify(unityBookData), 'text');
-
-    // 2. Render & bundle all cover / spine / page-edge PNG textures
-    addAsset('Assets/GrimoireForge/Textures/Cover_Front.png', canvasToPngBytes(rig.frontCoverTex.image), 'texture', { alpha: true });
-    addAsset('Assets/GrimoireForge/Textures/Cover_Back.png', canvasToPngBytes(rig.backCoverTex.image), 'texture', { alpha: true });
-    addAsset('Assets/GrimoireForge/Textures/Cover_Spine.png', canvasToPngBytes(rig.spineCoverTex.image), 'texture', { alpha: true });
-    addAsset('Assets/GrimoireForge/Textures/Page_Edge.png', canvasToPngBytes(rig.leftEdgeTex.image), 'texture', { alpha: false, repeat: true });
-
-    // 3. Render & bundle all spreads (2 PNG pages per spread)
-    for (let s = 0; s < state.spreads.length; s++) {
-      const sp = state.spreads[s];
-      const numL = String(s * 2 + 1).padStart(2, '0');
-      const numR = String(s * 2 + 2).padStart(2, '0');
-      const canvasL = createPageCanvas(sp.left, true, s * 2 + 1);
-      const canvasR = createPageCanvas(sp.right, false, s * 2 + 2);
-      addAsset(`Assets/GrimoireForge/Textures/Page_${numL}.png`, canvasToPngBytes(canvasL), 'texture', { alpha: false });
-      addAsset(`Assets/GrimoireForge/Textures/Page_${numR}.png`, canvasToPngBytes(canvasR), 'texture', { alpha: false });
-    }
-
-    // 4. Bundle Standard Unity Controller, VRChat UdonSharp Controller, Auto Prefab Builder & README
-    addAsset('Assets/GrimoireForge/Scripts/GrimoireBookController.cs', await loadTemplate('GrimoireBookController.cs'), 'script');
-    addAsset('Assets/GrimoireForge/Scripts/GrimoireBookUdon.cs', await loadTemplate('GrimoireBookUdon.cs'), 'script');
-    addAsset('Assets/GrimoireForge/Editor/GrimoireBookBuilder.cs', await loadTemplate('GrimoireBookBuilder.cs'), 'script');
-    addAsset('Assets/GrimoireForge/README.txt', await loadTemplate('README.txt'), 'text');
-
-    // 5. Pack into UnityPackage (<guid>/asset, asset.meta, pathname)
-    const gzBytes = await makeUnityPackage(pkgAssets);
-
-    const safeName = (state.bookTitle || 'GrimoireBook').replace(/[^a-zA-Z0-9_-]/g, '_') || 'GrimoireBook';
-    const blob = new Blob([gzBytes], { type: 'application/gzip' });
+    const { name, assets } = await buildAssets();
+    const blob = new Blob([await makeUnityPackage(assets)], { type: 'application/gzip' });
     const url = URL.createObjectURL(blob);
-    downloadDataUrl(url, `${safeName}.unitypackage`);
+    downloadDataUrl(url, `${name}.unitypackage`);
     setTimeout(() => URL.revokeObjectURL(url), 2000);
     showToast('.unitypackage を書き出しました');
   } catch (err) {

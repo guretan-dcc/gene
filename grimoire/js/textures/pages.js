@@ -1,6 +1,7 @@
 // ページ(UI画面)のテクスチャ
 import { state } from '../state.js';
-import { shadeHex, drawRoundRect } from './canvas-utils.js';
+import { shadeHex, drawRoundRect, isDarkColor } from './canvas-utils.js';
+import { MAGIC_PAGE_TYPES, drawMagicPage } from './magic.js';
 
 /**
  * Draws a clean, ink-styled low-poly UI page canvas for one page of a spread.
@@ -14,10 +15,12 @@ export function createPageCanvas(pageData, isLeft, pageNum) {
   const W = canvas.width;
   const H = canvas.height;
   const paperBase = state.paperColor;
-  const paperLight = shadeHex(paperBase, 10);
-  const paperBorder = shadeHex(paperBase, -36);
-  const inkDark = '#3a2e25';
-  const inkMuted = '#6d5e50';
+  // 紙の色が暗いときは、文字と枠を明るくする
+  const dark = isDarkColor(paperBase);
+  const paperLight = shadeHex(paperBase, dark ? 16 : 10);
+  const paperBorder = shadeHex(paperBase, dark ? 48 : -36);
+  const inkDark = dark ? '#f0e8da' : '#3a2e25';
+  const inkMuted = dark ? '#b3a896' : '#6d5e50';
   const accent = state.coverColor;
   const gold = shadeHex(state.metalColor, -12);
 
@@ -64,16 +67,22 @@ export function createPageCanvas(pageData, isLeft, pageNum) {
   ctx.textBaseline = 'middle';
   ctx.fillText(pageData.title || 'PAGE', headerX + headerW * 0.5, headerY + 25, headerW - 24);
 
-  const items = Array.isArray(pageData.items) && pageData.items.length > 0
+  const type = pageData.type || 'menu';
+  const items = Array.isArray(pageData.items) && (pageData.items.length > 0 || MAGIC_PAGE_TYPES.includes(type))
     ? pageData.items
     : ['ITEM 1', 'ITEM 2', 'ITEM 3'];
 
   const bodyX = headerX;
   const bodyW = headerW;
   const bodyTop = 132;
-  const type = pageData.type || 'menu';
 
-  if (type === 'menu') {
+  if (MAGIC_PAGE_TYPES.includes(type)) {
+    const theme = {
+      ink: inkDark, muted: inkMuted, paperLight, paperBorder,
+      accentInk: dark ? shadeHex(state.metalColor, 20) : shadeHex(accent, -10)
+    };
+    drawMagicPage(ctx, { ...pageData, items }, { x: bodyX, y: bodyTop - 8, w: bodyW, h: H - bodyTop - 70 }, theme);
+  } else if (type === 'menu') {
     items.slice(0, 6).forEach((label, idx) => {
       const y = bodyTop + idx * 72;
       const active = idx === 0;

@@ -12,6 +12,13 @@
 
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // 暗い画面にするため、白とグレーの明暗を入れ替える
+    if (window.tailwind) tailwind.config = { theme: { extend: { colors: {
+      white: '#1a1d24',
+      neutral: { 50: '#20242d', 100: '#282d38', 200: '#353b48', 300: '#475063', 400: '#7d879a', 500: '#98a1b3', 600: '#b9c0ce', 700: '#cfd4de', 800: '#e4e7ee', 900: '#f2f4f8' }
+    } } } };
+  </script>
 
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -85,9 +92,9 @@
   <!-- ====================================================================== -->
   <aside class="w-full lg:w-[300px] xl:w-[320px] h-[50vh] lg:h-full bg-white border-t lg:border-t-0 lg:border-l border-neutral-200 flex flex-col shrink-0 z-20">
     <!-- ジェネレーターの切り替え -->
-    <div class="flex items-center justify-between px-2 pt-2 shrink-0 bg-neutral-50/70">
-      <span class="text-xs font-semibold text-neutral-700 pl-1">魔導書ジェネレーター</span>
-      <nav class="flex items-center bg-white p-0.5 rounded-md border border-neutral-200 text-[11px]">
+    <div class="flex flex-wrap items-center justify-between gap-1 px-2 pt-2 shrink-0 bg-neutral-50/70">
+      <span class="text-xs font-semibold text-neutral-700 pl-1 whitespace-nowrap">魔導書ジェネレーター</span>
+      <nav class="flex items-center bg-white p-0.5 rounded-md border border-neutral-200 text-[11px] whitespace-nowrap">
         <a href="../island/" class="px-2 py-0.5 rounded text-neutral-500 hover:text-neutral-900">浮島</a>
         <a href="../stage/" class="px-2 py-0.5 rounded text-neutral-500 hover:text-neutral-900">ステージ</a>
         <span class="px-2 py-0.5 rounded bg-neutral-900 text-white font-medium" aria-current="page">魔導書</span>
@@ -248,6 +255,12 @@
         <div class="space-y-2 pt-2 border-t border-neutral-100">
           <span class="block text-[11px] font-semibold text-neutral-500">左ページ</span>
           <select id="ctrl-left-type" class="w-full bg-neutral-50 border border-neutral-200 rounded-md px-2.5 py-1.5 text-xs text-neutral-800">
+            <option value="shapes">解説: 図形</option>
+            <option value="compounds">解説: 重ねる文字</option>
+            <option value="words">解説: 単語</option>
+            <option value="grammar">解説: つなぎ方</option>
+            <option value="examples">解説: 例文</option>
+            <option value="notes">操作方法・メモ</option>
             <option value="menu">RPGメインメニュー</option>
             <option value="sigil">魔導紋章</option>
             <option value="stats">ステータス</option>
@@ -266,6 +279,12 @@
         <div class="space-y-2 pt-3 border-t border-neutral-100">
           <span class="block text-[11px] font-semibold text-neutral-500">右ページ</span>
           <select id="ctrl-right-type" class="w-full bg-neutral-50 border border-neutral-200 rounded-md px-2.5 py-1.5 text-xs text-neutral-800">
+            <option value="shapes">解説: 図形</option>
+            <option value="compounds">解説: 重ねる文字</option>
+            <option value="words">解説: 単語</option>
+            <option value="grammar">解説: つなぎ方</option>
+            <option value="examples">解説: 例文</option>
+            <option value="notes">操作方法・メモ</option>
             <option value="menu">RPGメインメニュー</option>
             <option value="sigil">魔導紋章</option>
             <option value="stats">ステータス</option>
@@ -293,7 +312,7 @@
             UnityPackage書き出し (.unitypackage)
           </button>
           <p class="text-[10px] text-neutral-500 leading-relaxed px-0.5">
-            シェイプキー・全ページPNG・UdonSharp対応スクリプト・自動Prefab生成ビルダーを同梱します。
+            テクスチャ1枚・マテリアル1つの軽量なPrefabです。ページ切り替え用の UdonSharp を同梱します。
           </p>
 
           <button id="btn-export-glb" type="button"

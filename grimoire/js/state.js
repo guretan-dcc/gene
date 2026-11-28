@@ -1,12 +1,12 @@
 // 本の設定・カメラ・ページめくりの状態
-import { DEFAULT_SPREADS } from './data/presets.js';
+import { buildMagicSpreads } from './data/magic-pages.js';
 
 export const state = {
   bookTitle: 'GRIMOIRE',
   coverColor: '#7c2d36',
   metalColor: '#d4a853',
   paperColor: '#dcd0b8',
-  bgColor: '#e4e2dd',
+  bgColor: '#12141a',
   proportion: 'standard',
   corners: 'chunky',
   coverPattern: 'arcane',
@@ -19,7 +19,7 @@ export const state = {
   autoRotate: false,
   currentSpread: 0,
   spreadVisual: 0, // Continuous spread index for smooth dynamic stack thickness
-  spreads: JSON.parse(JSON.stringify(DEFAULT_SPREADS))
+  spreads: buildMagicSpreads()
 };
 
 export const camOrbit = {

@@ -9,8 +9,9 @@ html, body {
   height: 100%;
   overflow: hidden;
   font-family: 'Inter', 'Noto Sans JP', sans-serif;
-  background-color: #e4e2dd;
-  color: #1f2937;
+  background-color: #12141a;
+  color: #e4e7ee;
+  color-scheme: dark;
 }
 canvas {
   display: block;
@@ -27,15 +28,15 @@ canvas {
   background: transparent;
 }
 .custom-scroll::-webkit-scrollbar-thumb {
-  background: #d1d5db;
+  background: #475063;
   border-radius: 9999px;
 }
 input[type="color"] {
   -webkit-appearance: none;
-  border: 1px solid #d1d5db;
+  border: 1px solid #353b48;
   border-radius: 6px;
   padding: 1px;
-  background: #ffffff;
+  background: #1a1d24;
   cursor: pointer;
 }
 input[type="color"]::-webkit-color-swatch-wrapper {
@@ -46,14 +47,14 @@ input[type="color"]::-webkit-color-swatch {
   border-radius: 4px;
 }
 .tab-btn-active {
-  background-color: #1f2937;
-  color: #ffffff;
+  background-color: #e4e7ee;
+  color: #12141a;
 }
 .tab-btn-inactive {
   background-color: transparent;
-  color: #6b7280;
+  color: #98a1b3;
 }
 .tab-btn-inactive:hover {
-  color: #1f2937;
-  background-color: #f3f4f6;
+  color: #f2f4f8;
+  background-color: #282d38;
 }
