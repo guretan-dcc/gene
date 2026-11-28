@@ -13,12 +13,15 @@ import { resetCameraOverview } from './camera/views.js';
 import { bindWalkKeys } from './camera/walk.js';
 import { bindPointerControls } from './input/pointerControls.js';
 import { bindUI } from './ui/bindUI.js';
+import { restoreSettings, bindSettingsStorage } from './ui/storage.js';
 
 try {
   setupScene(document.getElementById('viewport'));
   bindPointerControls(view.renderer.domElement);
   bindWalkKeys();
   bindUI();
+  restoreSettings();
+  bindSettingsStorage();
   generateArena();
   rebuildScene();
   resetCameraOverview();
