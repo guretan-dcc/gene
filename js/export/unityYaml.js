@@ -104,20 +104,21 @@ ${components.map(c => `  - component: {fileID: ${c}}`).join('\n')}
   m_IsActive: 1`;
 }
 
-function transform(id, owner, father, children) {
+// position: { x, y, z } / yaw180: true なら -Z 方向を向ける
+function transform(id, owner, father, children, position = { x: 0, y: 0, z: 0 }, yaw180 = false) {
   const list = children.length ? '\n' + children.map(c => `  - {fileID: ${c}}`).join('\n') : ' []';
   return `--- !u!4 &${id}
 Transform:
 ${COMMON}
   m_GameObject: {fileID: ${owner}}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalRotation: ${yaw180 ? '{x: 0, y: 1, z: 0, w: 0}' : '{x: 0, y: 0, z: 0, w: 1}'}
+  m_LocalPosition: {x: ${position.x}, y: ${position.y}, z: ${position.z}}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:${list}
   m_Father: {fileID: ${father}}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}`;
+  m_LocalEulerAnglesHint: {x: 0, y: ${yaw180 ? 180 : 0}, z: 0}`;
 }
 
 function meshFilter(id, owner, meshRef) {
@@ -182,16 +183,21 @@ ${COMMON}
   m_Mesh: ${meshRef}`;
 }
 
-// objects: [{ name, meshGuid, colliderGuid? }] を子に持つ Prefab
-export function createPrefab(rootName, objects, materialGuid) {
+// objects: [{ name, meshGuid, colliderGuid? }] と、開始位置 spawn を子に持つ Prefab
+export function createPrefab(rootName, objects, materialGuid, spawn) {
   const ROOT = 1000;
   const ROOT_TRANSFORM = 1001;
+  // 区画数が変わってもシーンからの参照が切れないよう、固定の fileID にする
+  const SPAWN = 1010;
+  const SPAWN_TRANSFORM = 1011;
   const baseId = i => 1100 + i * 10;
   const meshRef = guid => `{fileID: ${MESH_FILE_ID}, guid: ${guid}, type: 2}`;
 
   const docs = [
     gameObject(ROOT, rootName, [ROOT_TRANSFORM]),
-    transform(ROOT_TRANSFORM, ROOT, 0, objects.map((_, i) => baseId(i) + 1), 0)
+    transform(ROOT_TRANSFORM, ROOT, 0, [SPAWN_TRANSFORM, ...objects.map((_, i) => baseId(i) + 1)]),
+    gameObject(SPAWN, 'PlayerSpawn', [SPAWN_TRANSFORM]),
+    transform(SPAWN_TRANSFORM, SPAWN, ROOT_TRANSFORM, [], spawn, true)
   ];
 
   objects.forEach(({ name, meshGuid, colliderGuid }, i) => {

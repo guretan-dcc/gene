@@ -30,6 +30,7 @@ VS Code の Live Server や GitHub Pages でも動きます。Three.js r128 と 
 | `js/camera/` / `js/input/` | 視点・操作・クリック編集 |
 | `js/ui/` | サイドバー・統計・通知 |
 | `js/export/` | unitypackage / PLY / JSON 書き出し |
+| `unity/` | unitypackage に含めるエディタースクリプト |
 
 ## Unityへの書き出し
 
@@ -42,6 +43,7 @@ VS Code の Live Server や GitHub Pages でも動きます。Three.js r128 と 
 - 同じステージ名で出し直して取り込むと、シーン内の参照を保ったまま中身が更新されます。
 - 座標は数値をそのまま書き出すため、配置JSONと一致します（Unityでは見た目がプレビューと左右反転します）。
 - 扉は含みません。
+- 開始位置は Prefab 内の `PlayerSpawn` です。取り込んだあと Prefab を選択して **Tools > Stage Generator > 開始位置を設定** を実行すると、シーンに配置して `VRC Scene Descriptor` の Spawns に設定します（`unity/StageSpawnSetup.cs`）。
 - 部屋の中から見えない面（壁の外向きの面、壁の向こうの床の側面、溶岩より下、階段の段の裏）は作りません。装飾は `kit.box` を使うと自動で省かれます。
 
 ## ステージ構造
