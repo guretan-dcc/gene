@@ -7,7 +7,8 @@ myWorld 用のジェネレーター集です。各ページ右上(魔導書は�
 | [`island/`](island/README.md) | 群島・浮島＆橋ジェネレーター |
 | [`stage/`](stage/README.md) | ボクセルステージジェネレーター |
 | [`grimoire/`](grimoire/README.md) | ローポリ魔導書ジェネレーター |
-| `shared/` | 共通処理(`.unitypackage` の作成、固定GUID) |
+| [`enemy/`](enemy/README.md) | 敵(ロボット)ジェネレーター |
+| `shared/` | 共通処理(`.unitypackage`、固定GUID、Unity の YAML) |
 | `Editor.md` | Unity エディタースクリプトの資料 |
 
 ## 起動

@@ -24,7 +24,7 @@
 | `js/ui/` | サイドバー・統計・通知 |
 | `js/export/` | unitypackage / PLY / JSON 書き出し |
 | `unity/` | unitypackage に含めるエディタースクリプト |
-| `../shared/` | unitypackage 作成・固定GUID(全ジェネレーター共通) |
+| `../shared/` | unitypackage・固定GUID・Unity の YAML(ジェネレーター共通) |
 
 ## Unityへの書き出し
 

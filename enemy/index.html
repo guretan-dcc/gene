@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>敵ジェネレーター</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <link href="css/style.css" rel="stylesheet">
+</head>
+<body class="h-screen w-screen flex flex-col lg:flex-row select-none bg-[#0b0f19] text-slate-200">
+  <main class="relative flex-1 min-h-[50vh] lg:min-h-0 h-full overflow-hidden">
+    <canvas id="canvas"></canvas>
+    <div class="absolute top-3 left-3 pointer-events-none bg-slate-900/85 border border-slate-700 rounded-lg px-3 py-2 text-xs">
+      <div id="stats" class="font-mono"></div>
+      <div class="text-slate-400 mt-0.5">ドラッグ: 回転 ／ ホイール: ズーム</div>
+    </div>
+    <div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 px-4 py-2.5 rounded-xl bg-slate-800 border border-sky-500/50 text-xs shadow-2xl opacity-0 pointer-events-none transition-opacity"></div>
+  </main>
+
+  <aside class="w-full lg:w-[360px] h-[50vh] lg:h-full bg-slate-900 border-t lg:border-t-0 lg:border-l border-slate-800 p-4 overflow-y-auto flex flex-col gap-3.5 shrink-0 text-xs">
+    <div class="flex items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+      <h1 class="text-sm font-bold text-white">敵ジェネレーター</h1>
+      <!-- ジェネレーターの切り替え -->
+      <nav class="flex items-center shrink-0 bg-slate-950 p-0.5 rounded-lg border border-slate-700 text-[11px]">
+          <a href="../island/" class="px-2 py-0.5 rounded-md text-slate-400 hover:text-white">浮島</a>
+          <a href="../stage/" class="px-2 py-0.5 rounded-md text-slate-400 hover:text-white">ステージ</a>
+          <a href="../grimoire/" class="px-2 py-0.5 rounded-md text-slate-400 hover:text-white">魔導書</a>
+          <span class="px-2 py-0.5 rounded-md bg-sky-600 text-white font-medium" aria-current="page">敵</span>
+      </nav>
+    </div>
+
+    <div class="grid grid-cols-3 gap-1 bg-slate-950 border border-slate-700 rounded-lg p-1">
+      <button type="button" data-type="melee" class="type-button">近接</button>
+      <button type="button" data-type="ranged" class="type-button">遠距離</button>
+      <button type="button" data-type="boss" class="type-button">大型</button>
+    </div>
+
+    <div class="bg-slate-800/60 border border-slate-700/70 rounded-xl p-3 flex flex-col gap-2">
+      <label class="flex items-center justify-between gap-2"><span class="text-slate-300">名前</span>
+        <input type="text" id="name" maxlength="40" class="field">
+      </label>
+      <button id="btnExportUnity" type="button" class="py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold">Unity書き出し (.unitypackage)</button>
+    </div>
+
+    <div class="flex flex-col gap-2.5">
+      <label class="flex items-center justify-between gap-2"><span class="text-slate-300">シード</span>
+        <span class="flex gap-1.5"><input type="number" id="seed" min="0" step="1" class="field !w-24">
+        <button id="btnRandomSeed" type="button" class="px-2.5 rounded-md bg-slate-800 border border-slate-700 hover:bg-slate-700 font-semibold">ランダム</button></span>
+      </label>
+      <label class="flex items-center justify-between gap-2"><span class="text-slate-300 w-14 shrink-0">身長</span>
+        <input type="range" id="height" min="1" max="3.5" step="0.05" class="flex-1">
+        <span id="heightVal" class="w-12 text-right font-mono text-slate-300"></span>
+      </label>
+      <label class="flex items-center justify-between gap-2"><span class="text-slate-300 w-14 shrink-0">体格</span>
+        <input type="range" id="bulk" min="0.6" max="1.8" step="0.05" class="flex-1">
+        <span id="bulkVal" class="w-12 text-right font-mono text-slate-300"></span>
+      </label>
+      <label class="flex items-center justify-between gap-2"><span class="text-slate-300">頭</span>
+        <select id="head" class="field"></select>
+      </label>
+      <label class="flex items-center justify-between gap-2"><span class="text-slate-300">武器</span>
+        <select id="weapon" class="field"></select>
+      </label>
+      <label class="flex items-center justify-between gap-2"><span class="text-slate-300">盾</span><input type="checkbox" id="shield" class="w-4 h-4 accent-sky-500"></label>
+      <div class="grid grid-cols-4 gap-2">
+        <label class="flex flex-col items-center gap-1 text-slate-300">本体<input type="color" id="bodyColor" class="swatch"></label>
+        <label class="flex flex-col items-center gap-1 text-slate-300">関節<input type="color" id="jointColor" class="swatch"></label>
+        <label class="flex flex-col items-center gap-1 text-slate-300">装甲<input type="color" id="trimColor" class="swatch"></label>
+        <label class="flex flex-col items-center gap-1 text-slate-300">目<input type="color" id="eyeColor" class="swatch"></label>
+      </div>
+    </div>
+
+    <div class="border-t border-slate-800 pt-3 flex flex-col gap-2">
+      <label class="flex items-center justify-between gap-2"><span class="text-slate-300">動きの確認</span>
+        <select id="motion" class="field"></select>
+      </label>
+      <p class="text-slate-500 leading-relaxed">動きはプレビューだけです。書き出す Prefab は立ち姿勢で、関節ごとの子オブジェクトに分かれています。</p>
+    </div>
+
+    <button id="btnReset" type="button" class="py-1.5 rounded-lg border border-slate-700 text-slate-400 hover:text-white">設定を初期値に戻す</button>
+  </aside>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
