@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Grimoire Forge - ローポリ魔導書ジェネレーター</title>
+
+  <!-- Google Fonts: Inter & Noto Sans JP -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Three.js r128 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
+
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="flex flex-col lg:flex-row h-screen w-screen overflow-hidden select-none">
+
+  <!-- ====================================================================== -->
+  <!-- LEFT / TOP: 3D INTERACTIVE VIEWPORT                                    -->
+  <!-- ====================================================================== -->
+  <main id="viewport-container" class="relative flex-1 min-h-[50vh] lg:min-h-0 h-full overflow-hidden">
+    <canvas id="gl-canvas"></canvas>
+
+    <!-- Minimal Top-Left Title -->
+    <div class="absolute top-3.5 left-4 z-10 pointer-events-none">
+      <span id="viewport-title" class="text-xs font-semibold tracking-wide text-neutral-700/80">Grimoire Forge</span>
+    </div>
+
+    <!-- Minimal Top-Right Camera Switcher -->
+    <div class="absolute top-3 right-3 z-10 flex items-center bg-white/80 backdrop-blur-sm border border-black/10 rounded-lg p-0.5 shadow-sm">
+      <button id="btn-cam-spread" type="button"
+        class="px-2.5 py-1 text-[11px] font-medium text-neutral-700 hover:bg-neutral-100 rounded-md transition">
+        見開き
+      </button>
+      <button id="btn-cam-side" type="button"
+        class="px-2.5 py-1 text-[11px] font-medium text-neutral-700 hover:bg-neutral-100 rounded-md transition">
+        厚み確認
+      </button>
+      <button id="btn-cam-cover" type="button"
+        class="px-2.5 py-1 text-[11px] font-medium text-neutral-700 hover:bg-neutral-100 rounded-md transition">
+        表紙
+      </button>
+    </div>
+
+    <!-- Minimal Bottom Playback Bar -->
+    <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
+      <div class="bg-white/85 backdrop-blur-sm border border-black/10 shadow-sm rounded-full px-1.5 py-1 flex items-center gap-1">
+        <button id="btn-prev-page" type="button" aria-label="前のページ"
+          class="w-8 h-8 rounded-full hover:bg-neutral-100 disabled:opacity-30 disabled:pointer-events-none transition text-neutral-700 text-sm font-medium flex items-center justify-center">
+          ‹
+        </button>
+
+        <button id="btn-toggle-open" type="button"
+          class="px-3.5 h-8 rounded-full bg-neutral-900 hover:bg-neutral-800 active:scale-95 transition text-white text-xs font-medium">
+          <span id="open-btn-label">閉じる</span>
+        </button>
+
+        <button id="btn-next-page" type="button" aria-label="次のページ"
+          class="w-8 h-8 rounded-full hover:bg-neutral-100 disabled:opacity-30 disabled:pointer-events-none transition text-neutral-700 text-sm font-medium flex items-center justify-center">
+          ›
+        </button>
+
+        <span id="spread-indicator" class="text-[11px] font-medium text-neutral-500 pl-1.5 pr-2.5 border-l border-neutral-200 tabular-nums">
+          1 / 5
+        </span>
+      </div>
+    </div>
+
+    <!-- Minimal Toast Notification -->
+    <div id="toast-box" class="pointer-events-none fixed top-12 left-1/2 -translate-x-1/2 z-50 transition-all duration-200 opacity-0 -translate-y-1">
+      <div id="toast-msg" class="bg-neutral-900/90 text-white text-xs font-medium px-3.5 py-2 rounded-lg shadow-md">
+        通知
+      </div>
+    </div>
+  </main>
+
+  <!-- ====================================================================== -->
+  <!-- RIGHT / BOTTOM: MINIMAL INSPECTOR SIDEBAR                              -->
+  <!-- ====================================================================== -->
+  <aside class="w-full lg:w-[300px] xl:w-[320px] h-[50vh] lg:h-full bg-white border-t lg:border-t-0 lg:border-l border-neutral-200 flex flex-col shrink-0 z-20">
+    <!-- ジェネレーターの切り替え -->
+    <div class="flex items-center justify-between px-2 pt-2 shrink-0 bg-neutral-50/70">
+      <span class="text-xs font-semibold text-neutral-700 pl-1">魔導書ジェネレーター</span>
+      <nav class="flex items-center bg-white p-0.5 rounded-md border border-neutral-200 text-[11px]">
+        <a href="../island/" class="px-2 py-0.5 rounded text-neutral-500 hover:text-neutral-900">浮島</a>
+        <a href="../stage/" class="px-2 py-0.5 rounded text-neutral-500 hover:text-neutral-900">ステージ</a>
+        <span class="px-2 py-0.5 rounded bg-neutral-900 text-white font-medium" aria-current="page">魔導書</span>
+      </nav>
+    </div>
+
+    <!-- Compact 3-Tab Switcher -->
+    <nav class="p-2 border-b border-neutral-200 grid grid-cols-3 gap-1 shrink-0 bg-neutral-50/70">
+      <button type="button" data-tab="style" class="tab-btn tab-btn-active rounded-md py-1.5 text-xs font-medium transition">
+        外観
+      </button>
+      <button type="button" data-tab="pages" class="tab-btn tab-btn-inactive rounded-md py-1.5 text-xs font-medium transition">
+        ページ
+      </button>
+      <button type="button" data-tab="export" class="tab-btn tab-btn-inactive rounded-md py-1.5 text-xs font-medium transition">
+        書き出し
+      </button>
+    </nav>
+
+    <!-- Scrollable Controls -->
+    <div class="flex-1 overflow-y-auto custom-scroll p-3.5 space-y-4">
+
+      <!-- ================================================================ -->
+      <!-- TAB 1: APPEARANCE (PRESETS, COLORS, SHAPE, PARTS)                -->
+      <!-- ================================================================ -->
+      <section id="panel-style" class="tab-panel space-y-4">
+        <!-- Presets -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-semibold text-neutral-500">プリセット</span>
+            <button id="btn-randomize" type="button"
+              class="text-[11px] font-medium text-neutral-600 hover:text-neutral-900 underline underline-offset-2">
+              ランダム
+            </button>
+          </div>
+          <div id="preset-grid" class="grid grid-cols-2 gap-1.5">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <!-- Colors (3 cohesive colors, no gem) -->
+        <div class="space-y-2 pt-3 border-t border-neutral-100">
+          <span class="block text-[11px] font-semibold text-neutral-500">カラー</span>
+          <div class="grid grid-cols-3 gap-1.5">
+            <label class="flex flex-col items-center gap-1 bg-neutral-50 border border-neutral-200 rounded-md px-2 py-1.5 cursor-pointer">
+              <span class="text-[11px] text-neutral-600">表紙</span>
+              <input id="ctrl-cover-color" type="color" value="#7c2d36" class="w-full h-5" />
+            </label>
+            <label class="flex flex-col items-center gap-1 bg-neutral-50 border border-neutral-200 rounded-md px-2 py-1.5 cursor-pointer">
+              <span class="text-[11px] text-neutral-600">金具</span>
+              <input id="ctrl-metal-color" type="color" value="#d4a853" class="w-full h-5" />
+            </label>
+            <label class="flex flex-col items-center gap-1 bg-neutral-50 border border-neutral-200 rounded-md px-2 py-1.5 cursor-pointer">
+              <span class="text-[11px] text-neutral-600">紙</span>
+              <input id="ctrl-paper-color" type="color" value="#dcd0b8" class="w-full h-5" />
+            </label>
+          </div>
+
+          <div class="flex items-center justify-between pt-1">
+            <span class="text-xs text-neutral-600">背景</span>
+            <div id="bg-swatches" class="flex items-center gap-1.5">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Cover Title & Proportions -->
+        <div class="space-y-2.5 pt-3 border-t border-neutral-100">
+          <span class="block text-[11px] font-semibold text-neutral-500">形状・装丁</span>
+
+          <div class="flex items-center justify-between gap-2">
+            <label for="ctrl-book-title" class="text-xs text-neutral-600 shrink-0">表紙文字</label>
+            <input id="ctrl-book-title" type="text" maxlength="20" value="GRIMOIRE"
+              class="w-40 bg-neutral-50 border border-neutral-200 rounded-md px-2 py-1 text-xs text-neutral-800 focus:outline-none focus:border-neutral-500" />
+          </div>
+
+          <div class="flex items-center justify-between gap-2">
+            <label for="ctrl-proportion" class="text-xs text-neutral-600 shrink-0">比率</label>
+            <select id="ctrl-proportion" class="w-40 bg-neutral-50 border border-neutral-200 rounded-md px-2 py-1 text-xs text-neutral-800 focus:outline-none focus:border-neutral-500">
+              <option value="standard">スタンダード (3:4)</option>
+              <option value="tall">縦長 (2:3)</option>
+              <option value="square">スクエア (1:1)</option>
+              <option value="wide">横長 (4:3)</option>
+            </select>
+          </div>
+
+          <div class="space-y-1">
+            <div class="flex justify-between items-center">
+              <label for="ctrl-thickness" class="text-xs text-neutral-600">厚み</label>
+              <span id="val-thickness" class="text-[11px] text-neutral-500 tabular-nums">0.54</span>
+            </div>
+            <input id="ctrl-thickness" type="range" min="0.26" max="0.86" step="0.02" value="0.54"
+              class="w-full accent-neutral-800 cursor-pointer h-1.5" />
+          </div>
+
+          <div class="flex items-center justify-between gap-2">
+            <label for="ctrl-corners" class="text-xs text-neutral-600 shrink-0">四隅金具</label>
+            <select id="ctrl-corners" class="w-40 bg-neutral-50 border border-neutral-200 rounded-md px-2 py-1 text-xs text-neutral-800 focus:outline-none focus:border-neutral-500">
+              <option value="chunky">L字金具</option>
+              <option value="round">六角リベット</option>
+              <option value="none">なし</option>
+            </select>
+          </div>
+
+          <div class="flex items-center justify-between gap-2">
+            <label for="ctrl-cover-pattern" class="text-xs text-neutral-600 shrink-0">表紙模様</label>
+            <select id="ctrl-cover-pattern" class="w-40 bg-neutral-50 border border-neutral-200 rounded-md px-2 py-1 text-xs text-neutral-800 focus:outline-none focus:border-neutral-500">
+              <option value="arcane">魔導幾何学</option>
+              <option value="classic">クラシック</option>
+              <option value="royal">王室フレーム</option>
+              <option value="minimal">ミニマル</option>
+            </select>
+          </div>
+
+          <div class="flex items-center justify-between gap-2">
+            <label for="ctrl-emblem" class="text-xs text-neutral-600 shrink-0">表紙紋章</label>
+            <select id="ctrl-emblem" class="w-40 bg-neutral-50 border border-neutral-200 rounded-md px-2 py-1 text-xs text-neutral-800 focus:outline-none focus:border-neutral-500">
+              <option value="compass">魔導コンパス</option>
+              <option value="moon">三日月と星</option>
+              <option value="ring">リング紋章</option>
+              <option value="crest">シールド</option>
+              <option value="none">なし</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Parts Toggles -->
+        <div class="space-y-1.5 pt-3 border-t border-neutral-100">
+          <span class="block text-[11px] font-semibold text-neutral-500 mb-1">パーツ・表示</span>
+          <label class="flex items-center justify-between py-1 cursor-pointer">
+            <span class="text-xs text-neutral-700">見出しタブ</span>
+            <input id="ctrl-tabs" type="checkbox" checked class="accent-neutral-800 w-3.5 h-3.5" />
+          </label>
+          <label class="flex items-center justify-between py-1 cursor-pointer">
+            <span class="text-xs text-neutral-700">フラットシェーディング</span>
+            <input id="ctrl-flat" type="checkbox" checked class="accent-neutral-800 w-3.5 h-3.5" />
+          </label>
+          <label class="flex items-center justify-between py-1 cursor-pointer">
+            <span class="text-xs text-neutral-700">自動回転</span>
+            <input id="ctrl-autorotate" type="checkbox" class="accent-neutral-800 w-3.5 h-3.5" />
+          </label>
+        </div>
+      </section>
+
+      <!-- ================================================================ -->
+      <!-- TAB 2: UI PAGES EDITOR                                           -->
+      <!-- ================================================================ -->
+      <section id="panel-pages" class="tab-panel hidden space-y-4">
+        <div class="flex items-center justify-between">
+          <span class="text-[11px] font-semibold text-neutral-500">見開き選択</span>
+          <div id="spread-selector-group" class="flex gap-1">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <!-- Left Page -->
+        <div class="space-y-2 pt-2 border-t border-neutral-100">
+          <span class="block text-[11px] font-semibold text-neutral-500">左ページ</span>
+          <select id="ctrl-left-type" class="w-full bg-neutral-50 border border-neutral-200 rounded-md px-2.5 py-1.5 text-xs text-neutral-800">
+            <option value="menu">RPGメインメニュー</option>
+            <option value="sigil">魔導紋章</option>
+            <option value="stats">ステータス</option>
+            <option value="spells">呪文リスト</option>
+            <option value="inventory">インベントリ</option>
+            <option value="map">ワールドマップ</option>
+            <option value="settings">システム設定</option>
+          </select>
+          <input id="ctrl-left-title" type="text" maxlength="22" placeholder="見出し"
+            class="w-full bg-neutral-50 border border-neutral-200 rounded-md px-2.5 py-1.5 text-xs text-neutral-800" />
+          <input id="ctrl-left-items" type="text" placeholder="項目 (カンマ区切り)"
+            class="w-full bg-neutral-50 border border-neutral-200 rounded-md px-2.5 py-1.5 text-xs text-neutral-800" />
+        </div>
+
+        <!-- Right Page -->
+        <div class="space-y-2 pt-3 border-t border-neutral-100">
+          <span class="block text-[11px] font-semibold text-neutral-500">右ページ</span>
+          <select id="ctrl-right-type" class="w-full bg-neutral-50 border border-neutral-200 rounded-md px-2.5 py-1.5 text-xs text-neutral-800">
+            <option value="menu">RPGメインメニュー</option>
+            <option value="sigil">魔導紋章</option>
+            <option value="stats">ステータス</option>
+            <option value="spells">呪文リスト</option>
+            <option value="inventory">インベントリ</option>
+            <option value="map">ワールドマップ</option>
+            <option value="settings">システム設定</option>
+          </select>
+          <input id="ctrl-right-title" type="text" maxlength="22" placeholder="見出し"
+            class="w-full bg-neutral-50 border border-neutral-200 rounded-md px-2.5 py-1.5 text-xs text-neutral-800" />
+          <input id="ctrl-right-items" type="text" placeholder="項目 (カンマ区切り)"
+            class="w-full bg-neutral-50 border border-neutral-200 rounded-md px-2.5 py-1.5 text-xs text-neutral-800" />
+        </div>
+      </section>
+
+      <!-- ================================================================ -->
+      <!-- TAB 3: EXPORT & JSON                                             -->
+      <!-- ================================================================ -->
+      <section id="panel-export" class="tab-panel hidden space-y-4">
+        <div class="space-y-2">
+          <span class="block text-[11px] font-semibold text-neutral-500">画像・3Dデータ出力</span>
+
+          <button id="btn-export-unitypackage" type="button"
+            class="w-full bg-neutral-900 hover:bg-neutral-800 active:scale-[0.99] transition text-white font-medium text-xs py-2.5 px-3 rounded-md">
+            UnityPackage書き出し (.unitypackage)
+          </button>
+          <p class="text-[10px] text-neutral-500 leading-relaxed px-0.5">
+            シェイプキー・全ページPNG・UdonSharp対応スクリプト・自動Prefab生成ビルダーを同梱します。
+          </p>
+
+          <button id="btn-export-glb" type="button"
+            class="w-full bg-neutral-100 hover:bg-neutral-200 active:scale-[0.99] transition text-neutral-800 font-medium text-xs py-2 px-3 rounded-md">
+            3Dモデル書き出し (.GLB / シェイプキー付)
+          </button>
+
+          <button id="btn-export-png" type="button"
+            class="w-full bg-neutral-100 hover:bg-neutral-200 active:scale-[0.99] transition text-neutral-800 font-medium text-xs py-2 px-3 rounded-md">
+            透過PNGを保存
+          </button>
+
+          <button id="btn-export-png-bg" type="button"
+            class="w-full bg-neutral-100 hover:bg-neutral-200 active:scale-[0.99] transition text-neutral-800 font-medium text-xs py-2 px-3 rounded-md">
+            背景付きPNGを保存
+          </button>
+
+          <button id="btn-export-obj" type="button"
+            class="w-full bg-neutral-100 hover:bg-neutral-200 active:scale-[0.99] transition text-neutral-800 font-medium text-xs py-2 px-3 rounded-md">
+            静止3Dモデル書き出し (.OBJ)
+          </button>
+
+          <button id="btn-export-spread-tex" type="button"
+            class="w-full bg-neutral-100 hover:bg-neutral-200 active:scale-[0.99] transition text-neutral-800 font-medium text-xs py-2 px-3 rounded-md">
+            見開きテクスチャ保存 (.PNG)
+          </button>
+        </div>
+
+        <!-- Shape Key Scrub Inspector -->
+        <div class="space-y-2 pt-3 border-t border-neutral-100">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-semibold text-neutral-500">シェイプキー確認 (めくり手動)</span>
+            <span id="val-flip-scrub" class="text-[11px] text-neutral-500 tabular-nums">OFF</span>
+          </div>
+          <input id="ctrl-flip-scrub" type="range" min="0" max="1" step="0.01" value="0"
+            class="w-full accent-neutral-800 cursor-pointer h-1.5" />
+          <div id="shapekey-readout" class="bg-neutral-50 border border-neutral-200 rounded-md p-2 text-[10px] font-mono text-neutral-600 leading-relaxed">
+            Stack: Open_Thin 1.00 / Open_Thick 0.00<br />
+            Turn: Turn_00 (Basis)
+          </div>
+        </div>
+
+        <div class="space-y-2 pt-3 border-t border-neutral-100">
+          <span class="block text-[11px] font-semibold text-neutral-500">設定データ (JSON)</span>
+          <div class="grid grid-cols-2 gap-1.5">
+            <button id="btn-copy-json" type="button"
+              class="bg-neutral-100 hover:bg-neutral-200 transition text-neutral-800 font-medium text-xs py-1.5 rounded-md">
+              コピー
+            </button>
+            <button id="btn-toggle-import" type="button"
+              class="bg-neutral-100 hover:bg-neutral-200 transition text-neutral-800 font-medium text-xs py-1.5 rounded-md">
+              読み込み
+            </button>
+          </div>
+          <div id="json-import-box" class="hidden space-y-2 pt-1">
+            <textarea id="json-import-input" rows="4" placeholder='{"coverColor":"#7c2d36", ...}'
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-md p-2 text-[11px] font-mono text-neutral-700 focus:outline-none focus:border-neutral-500"></textarea>
+            <button id="btn-apply-json" type="button"
+              class="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-medium text-xs py-1.5 rounded-md">
+              適用
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </aside>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
